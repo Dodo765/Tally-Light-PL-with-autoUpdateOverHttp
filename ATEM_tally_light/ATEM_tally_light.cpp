@@ -1,87 +1,18 @@
 #include "ATEM_tally_light.hpp"
 
-#ifndef VERSION
 #define VERSION "dev"
-#endif
-
-// #define DEBUG_LED_STRIP
 #define FASTLED_ALLOW_INTERRUPTS 0
-
-#ifndef CHIP_FAMILY
-#define CHIP_FAMILY "Unknown"
-#endif
-
-#ifndef VERSION
-#define VERSION "Unknown"
-#endif
-
-#ifdef TALLY_TEST_SERVER
-#define DISPLAY_NAME "Tally Test server"
-#else
 #define DISPLAY_NAME "Tally Light"
-#endif
 
 // Include libraries:
-#if ESP32
-#include <esp_wifi.h>
-#include <WebServer.h>
-#include <WiFi.h>
-#else
 #include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
-#endif
 
 #include <EEPROM.h>
 #include <ATEMmin.h>
 #include <TallyServer.h>
 #include <FastLED.h>
 
-#if ESP32
-// Define LED1 color pins
-#ifndef PIN_RED1
-#define PIN_RED1 32
-#endif
-#ifndef PIN_GREEN1
-#define PIN_GREEN1 33
-#endif
-#ifndef PIN_BLUE1
-#define PIN_BLUE1 25
-#endif
-
-// Define LED2 color pins
-#ifndef PIN_RED2
-#define PIN_RED2 26
-#endif
-#ifndef PIN_GREEN2
-#define PIN_GREEN2 27
-#endif
-#ifndef PIN_BLUE2
-#define PIN_BLUE2 14
-#endif
-
-#else // ESP8266
-// Define LED1 color pins
-#ifndef PIN_RED1
-#define PIN_RED1 16 // D0
-#endif
-#ifndef PIN_GREEN1
-#define PIN_GREEN1 4 // D2
-#endif
-#ifndef PIN_BLUE1
-#define PIN_BLUE1 5 // D1
-#endif
-
-// Define LED2 color pins
-#ifndef PIN_RED2
-#define PIN_RED2 2 // D4
-#endif
-#ifndef PIN_GREEN2
-#define PIN_GREEN2 14 // D5
-#endif
-#ifndef PIN_BLUE2
-#define PIN_BLUE2 12 // D6
-#endif
-#endif
 
 // Define LED colors
 #define LED_OFF 0
@@ -118,15 +49,8 @@ CRGB color_led[8] = {CRGB::Black, CRGB::Red, CRGB::Lime, CRGB::Blue, CRGB::Yello
 #define NEOPIXEL_STATUS_NONE 3
 
 // FastLED
-#ifndef TALLY_DATA_PIN
-#if ESP32
-#define TALLY_DATA_PIN 12
-#elif ARDUINO_ESP8266_NODEMCU
-#define TALLY_DATA_PIN 7
-#else
 #define TALLY_DATA_PIN 13 // D7
-#endif
-#endif
+
 int numTallyLEDs;
 int numStatusLEDs;
 CRGB *leds;
@@ -135,20 +59,9 @@ CRGB *statusLED;
 bool neopixelsUpdated = false;
 
 // Initialize global variables
-#if ESP32
-WebServer server(80);
-#else
 ESP8266WebServer server(80);
-#endif
-
-#ifndef TALLY_TEST_SERVER
 ATEMmin atemSwitcher;
-#else
-int tallyFlag = TALLY_FLAG_OFF;
-#endif
-
 TallyServer tallyServer;
-
 ImprovWiFi improv(&Serial);
 
 uint8_t state = STATE_STARTING;
@@ -189,19 +102,6 @@ void onImprovWiFiConnectedCb(const char *ssid, const char *password)
 // Perform initial setup on power on
 void setup()
 {
-    // Init pins for LED
-    pinMode(PIN_RED1, OUTPUT);
-    pinMode(PIN_GREEN1, OUTPUT);
-    pinMode(PIN_BLUE1, OUTPUT);
-
-    pinMode(PIN_RED2, OUTPUT);
-    pinMode(PIN_GREEN2, OUTPUT);
-    pinMode(PIN_BLUE2, OUTPUT);
-
-    setBothLEDs(LED_BLUE);
-    // Setup current-measuring pin - Commented out for users without batteries
-    //  pinMode(A0, INPUT);
-
     // Start Serial
     Serial.begin(115200);
     Serial.println("########################");
@@ -227,7 +127,7 @@ void setup()
                 tallyLEDs = leds + numStatusLEDs;
             }
             else
-            { // if last or or other value
+            { // if last or other value
                 statusLED = leds + numTallyLEDs;
                 tallyLEDs = leds;
             }
@@ -264,11 +164,7 @@ void setup()
 
     // Put WiFi into station mode and make it connect to saved network
     WiFi.mode(WIFI_STA);
-#if ESP32
-    WiFi.setHostname(settings.tallyName);
-#else
     WiFi.hostname(settings.tallyName);
-#endif
     WiFi.setAutoReconnect(true);
     WiFi.begin();
 
@@ -303,10 +199,6 @@ void setup()
 
     // Set state to connecting before entering loop
     changeState(STATE_CONNECTING_TO_WIFI);
-
-#ifdef TALLY_TEST_SERVER
-    tallyServer.setTallySources(40);
-#endif
 }
 
 void loop()
@@ -329,12 +221,7 @@ void loop()
             Serial.println("IP:                  " + WiFi.localIP().toString());
             Serial.println("Subnet Mask:         " + WiFi.subnetMask().toString());
             Serial.println("Gateway IP:          " + WiFi.gatewayIP().toString());
-#ifdef TALLY_TEST_SERVER
-            Serial.println("Press enter (\\r) to loop through tally states.");
-            changeState(STATE_RUNNING);
-#else
             changeState(STATE_CONNECTING_TO_SWITCHER);
-#endif
         }
         else if (firstRun)
         {
@@ -342,11 +229,9 @@ void loop()
             Serial.println("Unable to connect. Serving \"Tally Light setup\" WiFi for configuration, while still trying to connect...");
             WiFi.softAP((String)DISPLAY_NAME + " setup");
             WiFi.mode(WIFI_AP_STA); // Enable softAP to access web interface in case of no WiFi
-            setBothLEDs(LED_WHITE);
             setStatusLED(LED_WHITE);
         }
         break;
-#ifndef TALLY_TEST_SERVER
     case STATE_CONNECTING_TO_SWITCHER:
         // Initialize a connection to the switcher:
         if (firstRun)
@@ -365,40 +250,9 @@ void loop()
             Serial.println("Connected to switcher");
         }
         break;
-#endif
+
 
     case STATE_RUNNING:
-#ifdef TALLY_TEST_SERVER
-        if (bytesAvailable && readByte == '\r')
-        {
-            tallyFlag++;
-            tallyFlag %= 4;
-
-            switch (tallyFlag)
-            {
-            case TALLY_FLAG_OFF:
-                Serial.println("Off");
-                break;
-            case TALLY_FLAG_PROGRAM:
-                Serial.println("Program");
-                break;
-            case TALLY_FLAG_PREVIEW:
-                Serial.println("Preview");
-                break;
-            case TALLY_FLAG_PROGRAM | TALLY_FLAG_PREVIEW:
-                Serial.println("Program and preview");
-                break;
-            default:
-                Serial.println("Invalid tally state...");
-                break;
-            }
-
-            for (int i = 0; i < 41; i++)
-            {
-                tallyServer.setTallyFlag(i, tallyFlag);
-            }
-        }
-#else
         // Handle data exchange and connection to swithcher
         atemSwitcher.runLoop();
 
@@ -420,21 +274,12 @@ void loop()
             tallyServer.resetTallyFlags();
         }
 
-#endif
-
         // Handle Tally Server
         tallyServer.runLoop();
 
         // Set LED and Neopixel colors accordingly
         int color = getLedColor(settings.tallyModeLED1, settings.tallyNo);
-        setLED1(color);
         setSTRIP(color);
-
-        color = getLedColor(settings.tallyModeLED2, settings.tallyNo);
-        setLED2(color);
-
-        // Commented out for userst without batteries - Also timer is not done properly
-        //  batteryLoop();
         break;
     }
 
@@ -445,11 +290,9 @@ void loop()
         Serial.println("WiFi connection lost...");
         changeState(STATE_CONNECTING_TO_WIFI);
 
-#ifndef TALLY_TEST_SERVER
         // Force atem library to reset connection, in order for status to read correctly on website.
         atemSwitcher.begin(settings.switcherIP);
         atemSwitcher.connect();
-#endif
 
         // Reset tally server's tally flags, They won't get the message, but it'll be reset for when the connectoin is back.
         tallyServer.resetTallyFlags();
@@ -459,9 +302,6 @@ void loop()
     if (neopixelsUpdated)
     {
         FastLED.show();
-#ifdef DEBUG_LED_STRIP
-        Serial.println("Updated LEDs");
-#endif
         neopixelsUpdated = false;
     }
 
@@ -477,86 +317,25 @@ void changeState(uint8_t stateToChangeTo)
     {
     case STATE_CONNECTING_TO_WIFI:
         state = STATE_CONNECTING_TO_WIFI;
-        setBothLEDs(LED_BLUE);
         setStatusLED(LED_BLUE);
         setSTRIP(LED_OFF);
         break;
     case STATE_CONNECTING_TO_SWITCHER:
         state = STATE_CONNECTING_TO_SWITCHER;
-        setBothLEDs(LED_PINK);
         setStatusLED(LED_PINK);
         setSTRIP(LED_OFF);
         break;
     case STATE_RUNNING:
         state = STATE_RUNNING;
-        setBothLEDs(LED_GREEN);
         setStatusLED(LED_ORANGE);
         break;
     }
 }
 
-// Set the color of both LEDs
-void setBothLEDs(uint8_t color)
-{
-    setLED(color, PIN_RED1, PIN_GREEN1, PIN_BLUE1);
-    setLED(color, PIN_RED2, PIN_GREEN2, PIN_BLUE2);
-}
-
-// Set the color of the 1st LED
-void setLED1(uint8_t color)
-{
-    setLED(color, PIN_RED1, PIN_GREEN1, PIN_BLUE1);
-}
-
-// Set the color of the 2nd LED
-void setLED2(uint8_t color)
-{
-    setLED(color, PIN_RED2, PIN_GREEN2, PIN_BLUE2);
-}
-
 // Set the color of a LED using the given pins
 void setLED(uint8_t color, int pinRed, int pinGreen, int pinBlue)
 {
-#if ESP32
-    switch (color)
-    {
-    case LED_OFF:
-        digitalWrite(pinRed, 0);
-        digitalWrite(pinGreen, 0);
-        digitalWrite(pinBlue, 0);
-        break;
-    case LED_RED:
-        digitalWrite(pinRed, 1);
-        digitalWrite(pinGreen, 0);
-        digitalWrite(pinBlue, 0);
-        break;
-    case LED_GREEN:
-        digitalWrite(pinRed, 0);
-        digitalWrite(pinGreen, 1);
-        digitalWrite(pinBlue, 0);
-        break;
-    case LED_BLUE:
-        digitalWrite(pinRed, 0);
-        digitalWrite(pinGreen, 0);
-        digitalWrite(pinBlue, 1);
-        break;
-    case LED_YELLOW:
-        digitalWrite(pinRed, 1);
-        digitalWrite(pinGreen, 1);
-        digitalWrite(pinBlue, 0);
-        break;
-    case LED_PINK:
-        digitalWrite(pinRed, 1);
-        digitalWrite(pinGreen, 0);
-        digitalWrite(pinBlue, 1);
-        break;
-    case LED_WHITE:
-        digitalWrite(pinRed, 1);
-        digitalWrite(pinGreen, 1);
-        digitalWrite(pinBlue, 1);
-        break;
-    }
-#else
+
     uint8_t ledBrightness = settings.ledBrightness;
     void (*writeFunc)(uint8_t, uint8_t);
     if (ledBrightness >= 0xff)
@@ -607,7 +386,6 @@ void setLED(uint8_t color, int pinRed, int pinGreen, int pinBlue)
         writeFunc(pinBlue, ledBrightness);
         break;
     }
-#endif
 }
 
 void analogWriteWrapper(uint8_t pin, uint8_t value)
@@ -625,10 +403,6 @@ void setSTRIP(uint8_t color)
             tallyLEDs[i] = color_led[color];
         }
         neopixelsUpdated = true;
-#ifdef DEBUG_LED_STRIP
-        Serial.println("Tally:  ");
-        printLeds();
-#endif
     }
 }
 
@@ -650,40 +424,18 @@ void setStatusLED(uint8_t color)
             }
         }
         neopixelsUpdated = true;
-#ifdef DEBUG_LED_STRIP
-        Serial.println("Status: ");
-        printLeds();
-#endif
     }
 }
 
-#ifdef DEBUG_LED_STRIP
-void printLeds()
-{
-    for (int i = 0; i < settings.neopixelsAmount; i++)
-    {
-        Serial.print(i);
-        Serial.print(", RGB: ");
-        Serial.print(leds[i].r);
-        Serial.print(", ");
-        Serial.print(leds[i].g);
-        Serial.print(", ");
-        Serial.println(leds[i].b);
-    }
-    Serial.println();
-}
-#endif
 
 int getTallyState(uint16_t tallyNo)
 {
-#ifndef TALLY_TEST_SERVER
     if (tallyNo >= atemSwitcher.getTallyByIndexSources())
     { // out of range
         return TALLY_FLAG_OFF;
     }
 
     uint8_t tallyFlag = atemSwitcher.getTallyByIndexTallyFlags(tallyNo);
-#endif
     if (tallyFlag & TALLY_FLAG_PROGRAM)
     {
         return TALLY_FLAG_PROGRAM;
@@ -702,12 +454,10 @@ int getLedColor(int tallyMode, int tallyNo)
 {
     if (tallyMode == MODE_ON_AIR)
     {
-#ifndef TALLY_TEST_SERVER
         if (atemSwitcher.getStreamStreaming())
         {
             return LED_RED;
         }
-#endif
         return LED_OFF;
     }
 
@@ -767,10 +517,6 @@ void handleRoot()
     html += "</td></tr><tr><td><br></td></tr><tr><td>Siła sygnału:</td><td colspan=\"2\">";
     html += WiFi.RSSI();
     html += " dBm</td></tr>";
-    // Commented out for users without batteries
-    //  html += "<tr><td><br></td></tr><tr><td>Battery voltage:</td><td colspan=\"2\">";
-    //  html += dtostrf(uBatt, 0, 3, buffer);
-    //  html += " V</td></tr>";
     html += "<tr><td>Statyczny adres IP:</td><td colspan=\"2\">";
     html += settings.staticIP == true ? "Tak" : "Nie";
     html += "</td></tr><tr><td> Adres IP:</td><td colspan=\"2\">";
@@ -780,7 +526,6 @@ void handleRoot()
     html += "</td></tr><tr><td>Brama domyślna: </td><td colspan=\"2\">";
     html += WiFi.gatewayIP().toString();
     html += "</td></tr><tr><td><br></td></tr>";
-#ifndef TALLY_TEST_SERVER
     html += "<tr><td>Status połączenia z ATEM:</td><td colspan=\"2\">";
     if (atemSwitcher.isRejected())
         html += "Połączenie odrzucone - brak wolnego slotu";
@@ -793,13 +538,8 @@ void handleRoot()
     html += "</td></tr><tr><td>Adres IP ATEM:</td><td colspan=\"2\">";
     html += (String)settings.switcherIP[0] + '.' + settings.switcherIP[1] + '.' + settings.switcherIP[2] + '.' + settings.switcherIP[3];
     html += "</td></tr><tr><td><br></td></tr>";
-#endif
     html += "<tr class=\"s777777\"style=\"color:#ffffff;font-size:.8em;\"><td colspan=\"3\"><h2>&nbsp;Ustawienia:</h2></td></tr><tr><td><br></td></tr><form action=\"/save\"method=\"post\"><tr><td>Nazwa urządzenia: </td><td><input type=\"text\"size=\"30\"maxlength=\"30\"name=\"tName\"value=\"";
-#if ESP32
-    html += WiFi.getHostname();
-#else
     html += WiFi.hostname();
-#endif
     html += "\"required/></td></tr><tr><td><br></td></tr><tr><td>Numer kamery: </td><td><input type=\"number\"size=\"5\"min=\"1\"max=\"41\"name=\"tNo\"value=\"";
     html += (settings.tallyNo + 1);
     html += "\"required/></td></tr><tr style=\"display:none;\"><td>Tally Light mode (LED 1):&nbsp;</td><td><select name=\"tModeLED1\"><option value=\"";
@@ -885,7 +625,6 @@ void handleRoot()
     html += "\"required/>. <input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"gate4\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallyGateway[3];
     html += "\"required/></td></tr>";
-#ifndef TALLY_TEST_SERVER
     html += "<tr><td><br></td></tr><tr><td>Adres IP ATEM: </td><td><input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP1\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.switcherIP[0];
     html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP2\"pattern=\"\\d{0,3}\"value=\"";
@@ -895,7 +634,6 @@ void handleRoot()
     html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP4\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.switcherIP[3];
     html += "\"required/></tr>";
-#endif
     html += "<tr><td><br></td></tr><tr><td/><td class=\"fr\"><input type=\"submit\"value=\"Zapisz zmiany\"/></td></tr></form><tr class=\"cccccc\"style=\"font-size: .8em;\"><td colspan=\"3\"><p>&nbsp;Stworzone przez <a href=\"https://github.com/Dodo765\" target=\"_blank\">Dominik Kawalec</a></p><p>&nbsp;Napisane w oparciu o bibliotekę <a href=\"https://github.com/kasperskaarhoj/SKAARHOJ-Open-Engineering/tree/master/ArduinoLibs\" target=\"_blank\">SKAARHOJ</a></p></td></tr></table></body></html>";
     server.send(200, "text/html", html);
 }
@@ -1066,45 +804,5 @@ void handleNotFound()
 
 String getSSID()
 {
-#if ESP32
-    wifi_config_t conf;
-    esp_wifi_get_config(WIFI_IF_STA, &conf);
-    return String(reinterpret_cast<const char *>(conf.sta.ssid));
-#else
     return WiFi.SSID();
-#endif
 }
-
-// Commented out for users without batteries - Also timer is not done properly
-// Main loop for things that should work every second
-//  void batteryLoop() {
-//      if (secLoop >= 400) {
-//          //Get and calculate battery current
-//          int raw = analogRead(A0);
-//          uBatt = (double)raw / 1023 * 4.2;
-
-//         //Set back status LED after one second to working LED_BLUE if it was changed by anything
-//         if (lowLedOn) {
-//             setStatusLED(LED_ORANGE);
-//             lowLedOn = false;
-//         }
-
-//         //Blink every 5 seconds for one second if battery current is under 3.6V
-//         if (lowLedCount >= 5 && uBatt <= 3.600) {
-//             setStatusLED(LED_YELLOW);
-//             lowLedOn = true;
-//             lowLedCount = 0;
-//         }
-//         lowLedCount++;
-
-//        //Turn stripes of and put ESP to deepsleep if battery is too low
-//        if(uBatt <= 3.499) {
-//            setSTRIP(LED_OFF);
-//            setStatusLED(LED_OFF);
-//            ESP.deepSleep(0, WAKE_NO_RFCAL);
-//        }
-
-//         secLoop = 0;
-//     }
-//     secLoop++;
-// }
