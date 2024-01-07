@@ -19,9 +19,9 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
 
-float firmware_version = 0.25;
-#define VERSION_CHECK_URL "http://api.dominikkawalec.pl:3000/firmware/version.txt" // http://62.133.153.75:3000/firmware/version.txt
-#define FIRMWARE_URL "192.168.100.222", 3000, "/firmware/httpUpdateNew.bin"
+float firmware_version = 0.27;
+#define VERSION_CHECK_URL "http://api.dominikkawalec.pl:3000/tallyLight/firmware/version.txt" // http://62.133.153.75:3000/firmware/version.txt
+#define FIRMWARE_URL "api.dominikkawalec.pl", 3000, "/tallyLight/firmware/firmware.bin"
 
 // Define LED colors
 #define LED_OFF 0
