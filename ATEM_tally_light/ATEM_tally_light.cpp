@@ -7,12 +7,21 @@
 // Include libraries:
 #include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
 
 #include <EEPROM.h>
 #include <ATEMmin.h>
 #include <TallyServer.h>
 #include <FastLED.h>
+#include <iostream>
+#include <string>
 
+#include <ESP8266HTTPClient.h>
+#include <ESP8266httpUpdate.h>
+
+float firmware_version = 0.25;
+#define VERSION_CHECK_URL "http://api.dominikkawalec.pl:3000/firmware/version.txt" // http://62.133.153.75:3000/firmware/version.txt
+#define FIRMWARE_URL "192.168.100.222", 3000, "/firmware/httpUpdateNew.bin"
 
 // Define LED colors
 #define LED_OFF 0
@@ -91,6 +100,102 @@ bool firstRun = true;
 int bytesAvailable = false;
 uint8_t readByte;
 
+void update_started()
+{
+    Serial.println("CALLBACK:  HTTP update process started");
+}
+
+void update_finished()
+{
+    Serial.println("CALLBACK:  HTTP update process finished");
+}
+
+void update_progress(int cur, int total)
+{
+    Serial.printf("CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
+}
+
+void update_error(int err)
+{
+    Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
+}
+
+float getRemoteFirmwareVersion()
+{
+    WiFiClient client;
+    HTTPClient http;
+    if (http.begin(client, VERSION_CHECK_URL))
+    {
+        Serial.println(http.GET());
+        int httpCode = http.GET();
+        if (httpCode == HTTP_CODE_OK)
+        {
+            String version = http.getString();
+            return version.toFloat();
+        }
+        else
+        {
+            return 0; // server online
+        }
+    }
+    return 0; // Return empty string if unable to fetch version
+}
+
+void updateSoftware()
+{
+
+    WiFiClient client;
+
+    float remoteVersion = getRemoteFirmwareVersion();
+
+    if (remoteVersion != 0 && remoteVersion > firmware_version)
+    {
+        Serial.print("New firmware available: ");
+        Serial.print(firmware_version);
+        Serial.print(" -> ");
+        Serial.print(remoteVersion);
+        Serial.println(". Starting update...");
+
+        // Add optional callback notifiers
+        ESPhttpUpdate.onStart(update_started);
+        ESPhttpUpdate.onEnd(update_finished);
+        ESPhttpUpdate.onProgress(update_progress);
+        ESPhttpUpdate.onError(update_error);
+
+        ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
+
+        // Specify the server IP, port, and firmware path for update
+        t_httpUpdate_return ret = ESPhttpUpdate.update(client, FIRMWARE_URL);
+
+        switch (ret)
+        {
+        case HTTP_UPDATE_FAILED:
+            Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
+            Serial.println(F("Retry in 10secs!"));
+            delay(10000); // Wait 10secs before retrying
+            break;
+
+        case HTTP_UPDATE_NO_UPDATES:
+            Serial.println("HTTP_UPDATE_NO_UPDATES");
+            break;
+
+        case HTTP_UPDATE_OK:
+            Serial.println("HTTP_UPDATE_OK");
+            delay(1000); // Wait a second and restart
+            ESP.restart();
+            break;
+        }
+    }
+    else if (remoteVersion == 0)
+    {
+        Serial.println("Server offline");
+    }
+    else
+    {
+        Serial.println("Firmware is up to date. No update needed.");
+    }
+}
+
 void onImprovWiFiErrorCb(ImprovTypes::Error err)
 {
 }
@@ -104,6 +209,7 @@ void setup()
 {
     // Start Serial
     Serial.begin(115200);
+
     Serial.println("########################");
     Serial.println("Serial started");
 
@@ -153,15 +259,17 @@ void setup()
 
     Serial.println(settings.tallyName);
 
+    IPAddress primaryDNS(1, 1, 1, 1);   // optional
+    IPAddress secondaryDNS(8, 8, 4, 4); // optional
     if (settings.staticIP && settings.tallyIP != IPADDR_NONE)
     {
-        WiFi.config(settings.tallyIP, settings.tallyGateway, settings.tallySubnetMask);
+        WiFi.config(settings.tallyIP, settings.tallyGateway, settings.tallySubnetMask, primaryDNS, secondaryDNS);
     }
     else
     {
         settings.staticIP = false;
     }
-
+    Serial.println(WiFi.dnsIP());
     // Put WiFi into station mode and make it connect to saved network
     WiFi.mode(WIFI_STA);
     WiFi.hostname(settings.tallyName);
@@ -221,6 +329,12 @@ void loop()
             Serial.println("IP:                  " + WiFi.localIP().toString());
             Serial.println("Subnet Mask:         " + WiFi.subnetMask().toString());
             Serial.println("Gateway IP:          " + WiFi.gatewayIP().toString());
+
+            Serial.println();
+            Serial.print(F("Current firmware version: "));
+            Serial.println(firmware_version);
+            updateSoftware();
+
             changeState(STATE_CONNECTING_TO_SWITCHER);
         }
         else if (firstRun)
@@ -250,7 +364,6 @@ void loop()
             Serial.println("Connected to switcher");
         }
         break;
-
 
     case STATE_RUNNING:
         // Handle data exchange and connection to swithcher
@@ -426,7 +539,6 @@ void setStatusLED(uint8_t color)
         neopixelsUpdated = true;
     }
 }
-
 
 int getTallyState(uint16_t tallyNo)
 {
