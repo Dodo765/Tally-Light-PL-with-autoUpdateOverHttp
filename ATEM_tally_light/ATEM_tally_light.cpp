@@ -548,6 +548,7 @@ int getTallyState(uint16_t tallyNo)
     }
 
     uint8_t tallyFlag = atemSwitcher.getTallyByIndexTallyFlags(tallyNo);
+    Serial.println(tallyFlag);
     if (tallyFlag & TALLY_FLAG_PROGRAM)
     {
         return TALLY_FLAG_PROGRAM;
@@ -577,16 +578,19 @@ int getLedColor(int tallyMode, int tallyNo)
 
     if (tallyState == TALLY_FLAG_PROGRAM)
     { // if tally live
+        Serial.println("On live");
         return LED_RED;
     }
     else if ((tallyState == TALLY_FLAG_PREVIEW      // if tally preview
               || tallyMode == MODE_PREVIEW_STAY_ON) // or preview stay on
              && tallyMode != MODE_PROGRAM_ONLY)
     { // and not program only
+        Serial.println("On live");
         return LED_GREEN;
     }
     else
     { // if tally is neither
+        Serial.println("OFF");
         return LED_OFF;
     }
 }
