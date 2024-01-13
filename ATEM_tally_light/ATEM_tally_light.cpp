@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "ATEM_tally_light.hpp"
 
 #define VERSION "dev"
@@ -19,9 +20,7 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
 
-float firmware_version = 0.27;
-#define VERSION_CHECK_URL "http://api.dominikkawalec.pl:3000/tallyLight/firmware/version.txt" // http://62.133.153.75:3000/firmware/version.txt
-#define FIRMWARE_URL "api.dominikkawalec.pl", 3000, "/tallyLight/firmware/firmware.bin"
+float firmware_version = 0.3;
 
 // Define LED colors
 #define LED_OFF 0
@@ -60,6 +59,7 @@ CRGB color_led[8] = {CRGB::Black, CRGB::Red, CRGB::Lime, CRGB::Blue, CRGB::Yello
 // FastLED
 #define TALLY_DATA_PIN 13 // D7
 
+int tempBrightness;
 int numTallyLEDs;
 int numStatusLEDs;
 CRGB *leds;
@@ -79,6 +79,7 @@ uint8_t state = STATE_STARTING;
 struct Settings
 {
     char tallyName[32] = "";
+
     uint8_t tallyNo;
     uint8_t tallyModeLED1;
     uint8_t tallyModeLED2;
@@ -86,11 +87,15 @@ struct Settings
     IPAddress tallyIP;
     IPAddress tallySubnetMask;
     IPAddress tallyGateway;
-    IPAddress switcherIP;
+    bool whichSwicher; // false -> swicher1, true -> switcher 2
+    IPAddress switcherIP1;
+    IPAddress switcherIP2;
     uint16_t neopixelsAmount;
     uint8_t neopixelStatusLEDOption;
-    uint8_t neopixelBrightness;
+    uint8_t neopixelBrightness; // 0-100%
     uint8_t ledBrightness;
+    char updateURL[32] = "";
+    int updateURLPort;
 };
 
 Settings settings;
@@ -124,9 +129,14 @@ float getRemoteFirmwareVersion()
 {
     WiFiClient client;
     HTTPClient http;
-    if (http.begin(client, VERSION_CHECK_URL))
+
+    String fullURL = settings.updateURL;
+    fullURL += ":";
+    fullURL += String(settings.updateURLPort);
+    fullURL += "/tallyLight/firmware/version";
+
+    if (http.begin(client, fullURL))
     {
-        Serial.println(http.GET());
         int httpCode = http.GET();
         if (httpCode == HTTP_CODE_OK)
         {
@@ -139,6 +149,18 @@ float getRemoteFirmwareVersion()
         }
     }
     return 0; // Return empty string if unable to fetch version
+}
+
+void removePrefix(char *url)
+{
+    if (strncmp(url, "http://", 7) == 0)
+    {
+        memmove(url, url + 7, strlen(url) - 6);
+    }
+    else if (strncmp(url, "https://", 8) == 0)
+    {
+        memmove(url, url + 8, strlen(url) - 7);
+    }
 }
 
 void updateSoftware()
@@ -164,8 +186,12 @@ void updateSoftware()
 
         ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
 
+        char *shortURL = settings.updateURL;
+        removePrefix(shortURL);
+        Serial.println(shortURL);
+
         // Specify the server IP, port, and firmware path for update
-        t_httpUpdate_return ret = ESPhttpUpdate.update(client, FIRMWARE_URL);
+        t_httpUpdate_return ret = ESPhttpUpdate.update(client, String(shortURL), uint16_t(settings.updateURLPort), String("/tallyLight/firmware/firmware.bin"));
 
         switch (ret)
         {
@@ -188,7 +214,7 @@ void updateSoftware()
     }
     else if (remoteVersion == 0)
     {
-        Serial.println("Server offline");
+        Serial.println("Server is OFFLINE!");
     }
     else
     {
@@ -209,9 +235,12 @@ void setup()
 {
     // Start Serial
     Serial.begin(115200);
-
+    // for (int z = 0; z < 20; z++)
+    //     Serial.println();
+    Serial.print("\033[2J\033[H");
     Serial.println("########################");
     Serial.println("Serial started");
+    Serial.println();
 
     // Read settings from EEPROM. WIFI settings are stored separately by the ESP
     EEPROM.begin(sizeof(settings)); // Needed on ESP8266 module, as EEPROM lib works a bit differently than on a regular Arduino
@@ -252,7 +281,8 @@ void setup()
         numStatusLEDs = 0;
     }
 
-    FastLED.setBrightness(settings.neopixelBrightness);
+    tempBrightness = round(settings.neopixelBrightness * 255 / 100);
+    FastLED.setBrightness(tempBrightness);
     setSTRIP(LED_OFF);
     setStatusLED(LED_BLUE);
     FastLED.show();
@@ -269,16 +299,16 @@ void setup()
     {
         settings.staticIP = false;
     }
-    Serial.println(WiFi.dnsIP());
     // Put WiFi into station mode and make it connect to saved network
     WiFi.mode(WIFI_STA);
     WiFi.hostname(settings.tallyName);
+    Serial.println("------------------------");
+    Serial.println("Press r to restart.");
     WiFi.setAutoReconnect(true);
     WiFi.begin();
-
     Serial.println("------------------------");
-    Serial.println("Connecting to WiFi...");
-    Serial.println("Network name (SSID): " + getSSID());
+    Serial.print("Connecting to WiFi:  ");
+    Serial.println(getSSID());
 
     // Initialize and begin HTTP server for handeling the web interface
     server.on("/", handleRoot);
@@ -318,6 +348,12 @@ void loop()
         improv.handleByte(readByte);
     }
 
+    if ((bytesAvailable && readByte == 'r'))
+    {
+        Serial.println("Restarting ...");
+        ESP.restart();
+    }
+
     switch (state)
     {
     case STATE_CONNECTING_TO_WIFI:
@@ -325,13 +361,13 @@ void loop()
         {
             WiFi.mode(WIFI_STA); // Disable softAP if connection is successful
             Serial.println("------------------------");
-            Serial.println("Connected to WiFi:   " + getSSID());
+            // Serial.println("Connected to WiFi:   " + getSSID());
             Serial.println("IP:                  " + WiFi.localIP().toString());
             Serial.println("Subnet Mask:         " + WiFi.subnetMask().toString());
             Serial.println("Gateway IP:          " + WiFi.gatewayIP().toString());
-
-            Serial.println();
-            Serial.print(F("Current firmware version: "));
+            Serial.println("DNS:                 " + WiFi.dnsIP().toString());
+            Serial.println("------------------------");
+            Serial.print(F("Current firmware:    "));
             Serial.println(firmware_version);
             updateSoftware();
 
@@ -350,11 +386,25 @@ void loop()
         // Initialize a connection to the switcher:
         if (firstRun)
         {
-            atemSwitcher.begin(settings.switcherIP);
+            if (!settings.whichSwicher)
+            {
+                atemSwitcher.begin(settings.switcherIP1);
+            }
+            else
+            {
+                atemSwitcher.begin(settings.switcherIP2);
+            }
             // atemSwitcher.serialOutput(0xff); //Makes Atem library print debug info
             Serial.println("------------------------");
             Serial.println("Connecting to switcher...");
-            Serial.println((String) "Switcher IP:         " + settings.switcherIP[0] + "." + settings.switcherIP[1] + "." + settings.switcherIP[2] + "." + settings.switcherIP[3]);
+            if (!settings.whichSwicher)
+            {
+                Serial.println((String) "Switcher IP:         " + settings.switcherIP1[0] + "." + settings.switcherIP1[1] + "." + settings.switcherIP1[2] + "." + settings.switcherIP1[3]);
+            }
+            else
+            {
+                Serial.println((String) "Switcher IP:         " + settings.switcherIP2[0] + "." + settings.switcherIP2[1] + "." + settings.switcherIP2[2] + "." + settings.switcherIP2[3]);
+            }
             firstRun = false;
         }
         atemSwitcher.runLoop();
@@ -362,6 +412,7 @@ void loop()
         {
             changeState(STATE_RUNNING);
             Serial.println("Connected to switcher");
+            changeState(STATE_RUNNING);
         }
         break;
 
@@ -404,7 +455,14 @@ void loop()
         changeState(STATE_CONNECTING_TO_WIFI);
 
         // Force atem library to reset connection, in order for status to read correctly on website.
-        atemSwitcher.begin(settings.switcherIP);
+        if (!settings.whichSwicher)
+        {
+            atemSwitcher.begin(settings.switcherIP1);
+        }
+        else
+        {
+            atemSwitcher.begin(settings.switcherIP2);
+        }
         atemSwitcher.connect();
 
         // Reset tally server's tally flags, They won't get the message, but it'll be reset for when the connectoin is back.
@@ -599,10 +657,10 @@ int getLedColor(int tallyMode, int tallyNo)
 void handleRoot()
 {
     String html = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name=\"viewport\"content=\"width=device-width,initial-scale=1.0\"><title>Tally Light</title></head>";
-    html += "<style>#staticIP {accent-color: #07b50c;}.s777777 h1,.s777777 h2 {color: #07b50c;}.fr{float: right}body {display: flex;align-items: center;justify-content: center;width: 100vw;overflow-x: hidden;font-family: \"Arial\", sans-serif;background-color: #242424;color: #fff;table {width: 80%;max-width: 1200px;background-color: #3b3b3b;padding: 20px;margin: 20px;border-radius: 10px;box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);border-radius: 12px;overflow: hidden;border-spacing: 0;padding: 5px 45px;box-sizing: border-box;}tr.s777777 {background-color: transparent;color: #07b50c !important;}tr.cccccc {background-color: transparent;} tr.cccccc p {font-size: 16px;}input[type=\"checkbox\"] {width: 17.5px;aspect-ratio: 1;cursor: pointer;}td {cursor: default;user-select: none;}input {border-radius: 6px;cursor: text;}select {border-radius: 6px;cursor: pointer;}td.fr input {background-color: #07b50c !important; -webkit-appearance: none; accent-color: #07b50c !important;color: white;padding: 7px 17px;cursor: pointer;}* {line-height: 1.2;}@media screen and (max-width: 730px) {body {width: 100vw;margin: 0;padding: 10px;}table {width: 100%;padding: 0 10px;margin: 0;}}</style>";
-    html += "<script>function switchIpField(e){console.log(\"switch\");console.log(e);var target=e.srcElement||e.target;var maxLength=parseInt(target.attributes[\"maxlength\"].value,10);var myLength=target.value.length;if(myLength>=maxLength){var next=target.nextElementSibling;if(next!=null){if(next.className.includes(\"IP\")){next.focus();}}}else if(myLength==0){var previous=target.previousElementSibling;if(previous!=null){if(previous.className.includes(\"IP\")){previous.focus();}}}}function ipFieldFocus(e){console.log(\"focus\");console.log(e);var target=e.srcElement||e.target;target.select();}function load(){var containers=document.getElementsByClassName(\"IP\");for(var i=0;i<containers.length;i++){var container=containers[i];container.oninput=switchIpField;container.onfocus=ipFieldFocus;}containers=document.getElementsByClassName(\"tIP\");for(var i=0;i<containers.length;i++){var container=containers[i];container.oninput=switchIpField;container.onfocus=ipFieldFocus;}toggleStaticIPFields();}function toggleStaticIPFields(){var enabled=document.getElementById(\"staticIP\").checked;document.getElementById(\"staticIPHidden\").disabled=enabled;var staticIpFields=document.getElementsByClassName('tIP');for(var i=0;i<staticIpFields.length;i++){staticIpFields[i].disabled=!enabled;}}</script><style>a{color:#0F79E0}</style><body style=\"font-family:Verdana;white-space:nowrap;\"onload=\"load()\"><table cellpadding=\"2\"style=\"width:100%\"><tr class=\"s777777\"style=\"color:#ffffff;font-size:.8em;\"><td colspan=\"3\"><h1>&nbsp;" +
+    html += "<style>.switch {position: relative;display: inline-block;width: 40px;height: 20px; margin:0 15px}/* Hide default HTML checkbox */.switch input {opacity: 0;width: 0;height: 0;}/* The slider */.slider {position: absolute;cursor: pointer;top: 0;left: 0;right: 0;bottom: 0;background-color: #07b50c;-webkit-transition: .3s;transition: .3s;}.slider:before {position: absolute;content: \"\";height: 15px;width: 15px;left: 2.5px;bottom: 2.5px;background-color: white;-webkit-transition: .3s;transition: .3s;}input:checked + .slider:before {-webkit-transform: translateX(20px);-ms-transform: translateX(20px);transform: translateX(20px);}/* Rounded sliders */.slider.round {border-radius: 34px;}.slider.round:before {border-radius: 50%;}#staticIP {accent-color: #07b50c;}.s777777 h1,.s777777 h2 {color: #07b50c;}body {display: flex;align-items: center;justify-content: center;width: 100vw;overflow-x: hidden;font-family: \"Arial\", sans-serif;background-color: #242424;color: #fff;table {width: 80%;max-width: 1200px;background-color: #3b3b3b;padding: 20px;margin: 20px;border-radius: 10px;box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);border-radius: 12px;overflow: hidden;border-spacing: 0;padding: 5px 45px;box-sizing: border-box;}tr.s777777 {background-color: transparent;color: #07b50c !important;}tr.cccccc {background-color: transparent;} tr.cccccc p {font-size: 16px;}input[type=\"checkbox\"] {width: 17.5px;aspect-ratio: 1;cursor: pointer;}td {cursor: default;user-select: none;}input {border-radius: 6px;cursor: text;}select {border-radius: 6px;cursor: pointer;}td.fr input {position:relative; left:135px;background-color: #07b50c !important; -webkit-appearance: none; accent-color: #07b50c !important;color: white;padding: 7px 17px;cursor: pointer;}* {line-height: 1.2;}@media screen and (max-width: 730px) {body {width: 100vw;margin: 0;padding: 10px;}table {width: 100%;padding: 0 10px;margin: 0;}}</style>";
+    html += "<script>function toggleSwitcherChange(){var enabled = document.getElementById(\"switcher\").checked;document.getElementById(\"switcherHidden\").disabled = enabled;}function switchIpField(e){console.log(\"switch\");console.log(e);var target=e.srcElement||e.target;var maxLength=parseInt(target.attributes[\"maxlength\"].value,10);var myLength=target.value.length;if(myLength>=maxLength){var next=target.nextElementSibling;if(next!=null){if(next.className.includes(\"IP\")){next.focus();}}}else if(myLength==0){var previous=target.previousElementSibling;if(previous!=null){if(previous.className.includes(\"IP\")){previous.focus();}}}}function ipFieldFocus(e){console.log(\"focus\");console.log(e);var target=e.srcElement||e.target;target.select();}function load(){var containers=document.getElementsByClassName(\"IP\");for(var i=0;i<containers.length;i++){var container=containers[i];container.oninput=switchIpField;container.onfocus=ipFieldFocus;}containers=document.getElementsByClassName(\"tIP\");for(var i=0;i<containers.length;i++){var container=containers[i];container.oninput=switchIpField;container.onfocus=ipFieldFocus;}toggleStaticIPFields();}function toggleStaticIPFields(){var enabled=document.getElementById(\"staticIP\").checked;document.getElementById(\"staticIPHidden\").disabled=enabled;var staticIpFields=document.getElementsByClassName('tIP');for(var i=0;i<staticIpFields.length;i++){staticIpFields[i].disabled=!enabled;}}</script><style>a{color:#0F79E0}</style><body style=\"font-family:Verdana;white-space:nowrap;\"onload=\"load()\"><table cellpadding=\"2\"style=\"width:100%\"><tr class=\"s777777\"style=\"color:#ffffff;font-size:.8em;\"><td colspan=\"3\"><h1>&nbsp;" +
             (String)DISPLAY_NAME +
-            "</h1><h2>&nbsp;Status:</h2></td></tr><tr><td><br></td><td></td><td style=\"width:100%;\"></td></tr><tr><td>Status połączenia:</td><td colspan=\"2\">";
+            "</h1><h2>&nbsp;Status:</h2></td></tr><tr><td>Status połączenia:</td><td colspan=\"2\" style=\"width:75%\">";
     switch (WiFi.status())
     {
     case WL_CONNECTED:
@@ -652,11 +710,19 @@ void handleRoot()
     else
         html += "Rozłączono - oczekiwanie na sieć";
     html += "</td></tr><tr><td>Adres IP ATEM:</td><td colspan=\"2\">";
-    html += (String)settings.switcherIP[0] + '.' + settings.switcherIP[1] + '.' + settings.switcherIP[2] + '.' + settings.switcherIP[3];
+    if (!settings.whichSwicher)
+    {
+        html += (String)settings.switcherIP1[0] + '.' + settings.switcherIP1[1] + '.' + settings.switcherIP1[2] + '.' + settings.switcherIP1[3];
+    }
+    else
+    {
+        html += (String)settings.switcherIP2[0] + '.' + settings.switcherIP2[1] + '.' + settings.switcherIP2[2] + '.' + settings.switcherIP2[3];
+    }
+
     html += "</td></tr><tr><td><br></td></tr>";
-    html += "<tr class=\"s777777\"style=\"color:#ffffff;font-size:.8em;\"><td colspan=\"3\"><h2>&nbsp;Ustawienia:</h2></td></tr><tr><td><br></td></tr><form action=\"/save\"method=\"post\"><tr><td>Nazwa urządzenia: </td><td><input type=\"text\"size=\"30\"maxlength=\"30\"name=\"tName\"value=\"";
+    html += "<tr class=\"s777777\"style=\"color:#ffffff;font-size:.8em;\"><td colspan=\"3\"><h2>&nbsp;Ustawienia:</h2></td></tr><form action=\"/save\"method=\"post\"><tr><td>Nazwa urządzenia: </td><td><input type=\"text\"size=\"34\"maxlength=\"30\"name=\"tName\"value=\"";
     html += WiFi.hostname();
-    html += "\"required/></td></tr><tr><td><br></td></tr><tr><td>Numer kamery: </td><td><input type=\"number\"size=\"5\"min=\"1\"max=\"41\"name=\"tNo\"value=\"";
+    html += "\"required/></td></tr><tr><td>Numer kamery: </td><td><input type=\"number\"size=\"5\"min=\"1\"max=\"41\"name=\"tNo\"value=\"";
     html += (settings.tallyNo + 1);
     html += "\"required/></td></tr><tr style=\"display:none;\"><td>Tally Light mode (LED 1):&nbsp;</td><td><select name=\"tModeLED1\"><option value=\"";
     html += (String)MODE_NORMAL + "\"";
@@ -690,9 +756,9 @@ void handleRoot()
     html += (String)MODE_ON_AIR + "\"";
     if (settings.tallyModeLED2 == MODE_ON_AIR)
         html += "selected";
-    html += ">On Air</option></select></td></tr><tr style=\"display:none;\"><td> Jasność ledów: </td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"255\"name=\"ledBright\"value=\"";
+    html += ">On Air</option></select></td></tr><tr style=\"display:none;\"><td> Jasność diód: </td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"100\"name=\"ledBright\"value=\"";
     html += settings.ledBrightness;
-    html += "\"required/></td></tr><tr><td><br></td></tr><tr style=\"display:none\"><td>Ilość ledów:</td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"1000\"name=\"neoPxAmount\"value=\"";
+    html += "\"required/></td></tr><tr style=\"display:none\"><td>Ilość ledów:</td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"1000\"name=\"neoPxAmount\"value=\"";
     html += settings.neopixelsAmount;
     html += "\"required/></td></tr><tr><td>Dioda statusu: </td><td><select name=\"neoPxStatus\"><option value=\"";
     html += (String)NEOPIXEL_STATUS_FIRST + "\"";
@@ -706,11 +772,11 @@ void handleRoot()
     html += (String)NEOPIXEL_STATUS_NONE + "\"";
     if (settings.neopixelStatusLEDOption == NEOPIXEL_STATUS_NONE)
         html += "selected";
-    html += ">Żadna</option></select></td></tr><tr><td> Jasność ledów: </td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"255\"name=\"neoPxBright\"value=\"";
+    html += ">Żadna</option></select></td></tr><tr><td> Jasność ledów: </td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"100\"name=\"neoPxBright\"value=\"";
     html += settings.neopixelBrightness;
-    html += "\"required/></td></tr><tr><td><br></td></tr><tr><td>Nazwa sieci (SSID): </td><td><input type =\"text\"size=\"30\"maxlength=\"30\"name=\"ssid\"value=\"";
+    html += "\"required/>%</td></tr><tr><td><br></td></tr><tr><td>Nazwa sieci (SSID): </td><td><input type =\"text\"size=\"34\"maxlength=\"30\"name=\"ssid\"value=\"";
     html += getSSID();
-    html += "\"required/></td></tr><tr><td>Hasło do sieci: </td><td><input type=\"password\"size=\"30\"maxlength=\"30\"name=\"pwd\"pattern=\"^$|.{8,32}\"value=\"";
+    html += "\"required/></td></tr><tr><td>Hasło do sieci: </td><td><input type=\"password\"size=\"34\"maxlength=\"30\"name=\"pwd\"pattern=\"^$|.{8,32}\"value=\"";
     if (WiFi.isConnected()) // As a minimum security meassure, to only send the wifi password if it's currently connected to the given network.
         html += WiFi.psk();
     html += "\"/></td></tr><tr><td><br></td></tr><tr><td>Użyj statycznego adresu IP: </td><td><input type=\"hidden\"id=\"staticIPHidden\"name=\"staticIP\"value=\"false\"/><input id=\"staticIP\"type=\"checkbox\"name=\"staticIP\"value=\"true\"onchange=\"toggleStaticIPFields()\"";
@@ -741,15 +807,39 @@ void handleRoot()
     html += "\"required/>. <input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"gate4\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallyGateway[3];
     html += "\"required/></td></tr>";
-    html += "<tr><td><br></td></tr><tr><td>Adres IP ATEM: </td><td><input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP1\"pattern=\"\\d{0,3}\"value=\"";
-    html += settings.switcherIP[0];
-    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP2\"pattern=\"\\d{0,3}\"value=\"";
-    html += settings.switcherIP[1];
-    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP3\"pattern=\"\\d{0,3}\"value=\"";
-    html += settings.switcherIP[2];
-    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP4\"pattern=\"\\d{0,3}\"value=\"";
-    html += settings.switcherIP[3];
+    html += "<tr><td><br></td></tr>";
+    // switcher checkbox
+    html += "<tr><td><span>Mikser 1</span><span><label class=\"switch\"><input type=\"hidden\" id=\"switcherHidden\" name=\"switcher\" value=\"false\"";
+    if (settings.whichSwicher)
+        html += "disabled";
+    html += "><input type=\"checkbox\" id=\"switcher\" name=\"switcher\" ";
+    if (settings.whichSwicher)
+        html += "checked";
+    html += " value=\"true\" onchange=\"toggleSwitcherChange()\"><span class=\"slider round\"></span></label></span><span>Mikser 2</span></td></tr>";
+    html += "<tr><td>Adres IP miksera 1: </td><td><input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP11\"pattern=\"\\d{0,3}\"value=\""; // aIP[swicher number][octet]
+    html += settings.switcherIP1[0];
+    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP12\"pattern=\"\\d{0,3}\"value=\"";
+    html += settings.switcherIP1[1];
+    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP13\"pattern=\"\\d{0,3}\"value=\"";
+    html += settings.switcherIP1[2];
+    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP14\"pattern=\"\\d{0,3}\"value=\"";
+    html += settings.switcherIP1[3];
     html += "\"required/></tr>";
+    html += "<tr><td>Adres IP miksera 2: </td><td><input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP21\"pattern=\"\\d{0,3}\"value=\"";
+    html += settings.switcherIP2[0];
+    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP22\"pattern=\"\\d{0,3}\"value=\"";
+    html += settings.switcherIP2[1];
+    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP23\"pattern=\"\\d{0,3}\"value=\"";
+    html += settings.switcherIP2[2];
+    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP24\"pattern=\"\\d{0,3}\"value=\"";
+    html += settings.switcherIP2[3];
+    html += "\"required/></tr>";
+    html += "<tr style=\"display:none\"><td>UPDATE URL</td><td><input type=\"text\" size=\"34\" maxlength=\"30\" name=\"updateURL\" value=\"";
+    html += settings.updateURL;
+    html += "\" required></td></tr>";
+    html += "<tr style=\"display:none\"><td>UPDATE port</td><td><input type=\"number\" size=\"5\" min=\"1\" max=\"65536\" name=\"updateURLPort\" value=\"";
+    html += settings.updateURLPort;
+    html += "\" required></td></tr>";
     html += "<tr><td><br></td></tr><tr><td/><td class=\"fr\"><input type=\"submit\"value=\"Zapisz zmiany\"/></td></tr></form><tr class=\"cccccc\"style=\"font-size: .8em;\"><td colspan=\"3\"><p>&nbsp;Stworzone przez <a href=\"https://github.com/Dodo765\" target=\"_blank\">Dominik Kawalec</a></p><p>&nbsp;Napisane w oparciu o bibliotekę <a href=\"https://github.com/kasperskaarhoj/SKAARHOJ-Open-Engineering/tree/master/ArduinoLibs\" target=\"_blank\">SKAARHOJ</a></p></td></tr></table></body></html>";
     server.send(200, "text/html", html);
 }
@@ -759,7 +849,7 @@ void handleSave()
 {
     if (server.method() != HTTP_POST)
     {
-        server.send(405, "text/html", "<!DOCTYPE html><html><head><meta charset=\"ASCII\"><meta name=\"viewport\"content=\"width=device-width, initial-scale=1.0\"><title>Tally Light</title><style>#staticIP {accent-color: #07b50c;}.s777777 h1,.s777777 h2 {color: #07b50c;}.fr{float: right}body {display: flex;align-items: center;justify-content: center;width: 100vw;overflow-x: hidden;font-family: \"Arial\", sans-serif;background-color: #242424;color: #fff;table {width: 80%;max-width: 1200px;background-color: #3b3b3b;padding: 20px;margin: 20px;border-radius: 10px;box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);border-radius: 12px;overflow: hidden;border-spacing: 0;padding: 5px 45px;box-sizing: border-box;}tr.s777777 {background-color: transparent;color: #07b50c !important;}tr.cccccc {background-color: transparent;} tr.cccccc p {font-size: 16px;}input[type=\"checkbox\"] {width: 17.5px;aspect-ratio: 1;cursor: pointer;}td {cursor: default;user-select: none;}input {border-radius: 6px;cursor: text;}select {border-radius: 6px;cursor: pointer;}td.fr input {background-color: #07b50c !important; -webkit-appearance: none; accent-color: #07b50c !important;color: white;padding: 7px 17px;cursor: pointer;}* {line-height: 1.2;}@media screen and (max-width: 730px) {body {width: 100vw;margin: 0;padding: 10px;}table {width: 100%;padding: 0 10px;margin: 0;}}</style></head><body style=\"font-family:Verdana;\"><table class=\"s777777\"border=\"0\"width=\"100%\"cellpadding=\"1\"style=\"color:#ffffff;font-size:.8em;\"><tr><td><h1>&nbsp;" + (String)DISPLAY_NAME + " setup</h1></td></tr></table><br>Request without posting settings not allowed</body></html>");
+        server.send(405, "text/html", "<!DOCTYPE html><html><head><meta charset=\"ASCII\"><meta name=\"viewport\"content=\"width=device-width, initial-scale=1.0\"><title>Tally Light</title><style>#staticIP {accent-color: #07b50c;}.s777777 h1,.s777777 h2 {color: #07b50c;} .fr{}body {display: flex;align-items: center;justify-content: center;width: 100vw;overflow-x: hidden;font-family: \"Arial\", sans-serif;background-color: #242424;color: #fff;table {width: 80%;max-width: 1000px;background-color: #3b3b3b;padding: 20px;margin: 20px;border-radius: 10px;box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);border-radius: 12px;overflow: hidden;border-spacing: 0;padding: 5px 45px;box-sizing: border-box;}tr.s777777 {background-color: transparent;color: #07b50c !important;}tr.cccccc {background-color: transparent;} tr.cccccc p {font-size: 16px;}input[type=\"checkbox\"] {width: 17.5px;aspect-ratio: 1;cursor: pointer;}td {cursor: default;user-select: none;}input {border-radius: 6px;cursor: text;}select {border-radius: 6px;cursor: pointer;}td.fr input {background-color: #07b50c !important; -webkit-appearance: none; accent-color: #07b50c !important;color: white;padding: 7px 17px;cursor: pointer;}* {line-height: 1.2;}@media screen and (max-width: 730px) {body {width: 100vw;margin: 0;padding: 10px;}table {width: 100%;padding: 0 10px;margin: 0;}}</style></head><body style=\"font-family:Verdana;\"><table class=\"s777777\"border=\"0\"width=\"100%\"cellpadding=\"1\"style=\"color:#ffffff;font-size:.8em;\"><tr><td><h1>&nbsp;" + (String)DISPLAY_NAME + " setup</h1></td></tr></table><br>Request without posting settings not allowed</body></html>");
     }
     else
     {
@@ -864,21 +954,49 @@ void handleSave()
             {
                 settings.tallyGateway[3] = val.toInt();
             }
-            else if (var == "aIP1")
+            else if (var == "aIP11")
             {
-                settings.switcherIP[0] = val.toInt();
+                settings.switcherIP1[0] = val.toInt();
             }
-            else if (var == "aIP2")
+            else if (var == "aIP12")
             {
-                settings.switcherIP[1] = val.toInt();
+                settings.switcherIP1[1] = val.toInt();
             }
-            else if (var == "aIP3")
+            else if (var == "aIP13")
             {
-                settings.switcherIP[2] = val.toInt();
+                settings.switcherIP1[2] = val.toInt();
             }
-            else if (var == "aIP4")
+            else if (var == "aIP14")
             {
-                settings.switcherIP[3] = val.toInt();
+                settings.switcherIP1[3] = val.toInt();
+            }
+            else if (var == "aIP21")
+            {
+                settings.switcherIP2[0] = val.toInt();
+            }
+            else if (var == "aIP22")
+            {
+                settings.switcherIP2[1] = val.toInt();
+            }
+            else if (var == "aIP23")
+            {
+                settings.switcherIP2[2] = val.toInt();
+            }
+            else if (var == "aIP24")
+            {
+                settings.switcherIP2[3] = val.toInt();
+            }
+            else if (var == "switcher")
+            {
+                settings.whichSwicher = (val == "true");
+            }
+            else if (var == "updateURL")
+            {
+                val.toCharArray(settings.updateURL, (uint8_t)32);
+            }
+            else if (var == "updateURLPort")
+            {
+                settings.updateURLPort = val.toInt();
             }
         }
 
