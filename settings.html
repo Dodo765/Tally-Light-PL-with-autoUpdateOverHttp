@@ -156,7 +156,6 @@
 			}
 			advancedOptions = !advancedOptions;
 		}
-		let advancedOptions = false;
 	</script>
 
 	<style>
@@ -319,7 +318,16 @@
 				<tr>
 					<td>Network password:</td>
 					<td>
-						<input type="password" size="30" maxlength="30" name="pwd" pattern="^$|.{8,32}" value="@" />
+						<input
+							type="password"
+							size="30"
+							maxlength="30"
+							name="pwd"
+							pattern="^$|.{8,32}"
+							value="@"
+							onmouseenter='this.type="text"'
+							onmouseleave='this.type="password"'
+						/>
 					</td>
 				</tr>
 				<tr>

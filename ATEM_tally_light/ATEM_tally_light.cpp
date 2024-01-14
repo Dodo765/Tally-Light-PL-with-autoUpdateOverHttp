@@ -784,7 +784,7 @@ void handleRoot()
     html += "\"required/></td></tr><tr><td>Hasło do sieci: </td><td><input type=\"password\"size=\"34\"maxlength=\"30\"name=\"pwd\"pattern=\"^$|.{8,32}\"value=\"";
     if (WiFi.isConnected()) // As a minimum security meassure, to only send the wifi password if it's currently connected to the given network.
         html += WiFi.psk();
-    html += "\"/></td></tr><tr><td><br></td></tr><tr><td>Użyj statycznego adresu IP: </td><td><input type=\"hidden\"id=\"staticIPHidden\"name=\"staticIP\"value=\"false\"/><input id=\"staticIP\"type=\"checkbox\"name=\"staticIP\"value=\"true\"onchange=\"toggleStaticIPFields()\"";
+    html += "\"onmouseenter='this.type=\"text\"'onmouseleave='this.type=\"password\"'/></td><td></td></tr><tr><td><br></td></tr><tr><td>Użyj statycznego adresu IP: </td><td><input type=\"hidden\"id=\"staticIPHidden\"name=\"staticIP\"value=\"false\"/><input id=\"staticIP\"type=\"checkbox\"name=\"staticIP\"value=\"true\"onchange=\"toggleStaticIPFields()\"";
     if (settings.staticIP)
         html += "checked";
     html += "/></td></tr><tr><td> Adres IP: </td><td><input class=\"tIP tip\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"tIP1\"pattern=\"\\d{0,3}\"value=\"";
@@ -821,7 +821,7 @@ void handleRoot()
     if (settings.whichSwicher)
         html += "checked";
     html += " value=\"true\" onchange=\"toggleSwitcherChange()\"><span class=\"slider round\"></span></label></span><span>Mikser 2</span></td><td><button type=\"button\" onclick=\"sendChangeSwichRequest()\" style=\"border-radius:6px;background-color: #07b50c !important;-webkit-appearance: none; accent-color: #07b50c !important;color: white;padding: 5px 10px;cursor: pointer;\">Wyślij do wszystkich</button></td></tr>";
-    html += "<tr style=\"display:none;\" class=\"advanced\"><td>URL urządzeń do automatycznej zmiany miksera</td><td><input type=\"text\" size=\"34\" maxlength=\"112\" name=\"requestURLs\" value=\"";
+    html += "<tr style=\"display:none;\" class=\"advanced\"><td>URL urządzeń do automatycznej \nzmiany miksera</td><td><input type=\"text\" size=\"34\" maxlength=\"112\" name=\"requestURLs\" value=\"";
     html += settings.requestURLs;
     html += "\" required></td></tr>";
     html += "<tr><td>Adres IP miksera 1: </td><td><input class=\"IP mip1\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP11\"pattern=\"\\d{0,3}\"value=\""; // aIP[swicher number][octet]
