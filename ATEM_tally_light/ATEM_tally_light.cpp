@@ -20,7 +20,10 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
 
-float firmware_version = 0.3;
+// FIRMWARE VERSION !!!
+// CHANGE WHILE UPLOADING TO SERVER
+
+float firmware_version = 0.4;
 
 // Define LED colors
 #define LED_OFF 0
@@ -79,7 +82,6 @@ uint8_t state = STATE_STARTING;
 struct Settings
 {
     char tallyName[32] = "";
-
     uint8_t tallyNo;
     uint8_t tallyModeLED1;
     uint8_t tallyModeLED2;
@@ -96,6 +98,7 @@ struct Settings
     uint8_t ledBrightness;
     char updateURL[32] = "";
     int updateURLPort;
+    char requestURLs[112] = "";
 };
 
 Settings settings;
@@ -658,7 +661,9 @@ void handleRoot()
 {
     String html = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name=\"viewport\"content=\"width=device-width,initial-scale=1.0\"><title>Tally Light</title></head>";
     html += "<style>.switch {position: relative;display: inline-block;width: 40px;height: 20px; margin:0 15px}/* Hide default HTML checkbox */.switch input {opacity: 0;width: 0;height: 0;}/* The slider */.slider {position: absolute;cursor: pointer;top: 0;left: 0;right: 0;bottom: 0;background-color: #07b50c;-webkit-transition: .3s;transition: .3s;}.slider:before {position: absolute;content: \"\";height: 15px;width: 15px;left: 2.5px;bottom: 2.5px;background-color: white;-webkit-transition: .3s;transition: .3s;}input:checked + .slider:before {-webkit-transform: translateX(20px);-ms-transform: translateX(20px);transform: translateX(20px);}/* Rounded sliders */.slider.round {border-radius: 34px;}.slider.round:before {border-radius: 50%;}#staticIP {accent-color: #07b50c;}.s777777 h1,.s777777 h2 {color: #07b50c;}body {display: flex;align-items: center;justify-content: center;width: 100vw;overflow-x: hidden;font-family: \"Arial\", sans-serif;background-color: #242424;color: #fff;table {width: 80%;max-width: 1200px;background-color: #3b3b3b;padding: 20px;margin: 20px;border-radius: 10px;box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);border-radius: 12px;overflow: hidden;border-spacing: 0;padding: 5px 45px;box-sizing: border-box;}tr.s777777 {background-color: transparent;color: #07b50c !important;}tr.cccccc {background-color: transparent;} tr.cccccc p {font-size: 16px;}input[type=\"checkbox\"] {width: 17.5px;aspect-ratio: 1;cursor: pointer;}td {cursor: default;user-select: none;}input {border-radius: 6px;cursor: text;}select {border-radius: 6px;cursor: pointer;}td.fr input {position:relative; left:135px;background-color: #07b50c !important; -webkit-appearance: none; accent-color: #07b50c !important;color: white;padding: 7px 17px;cursor: pointer;}* {line-height: 1.2;}@media screen and (max-width: 730px) {body {width: 100vw;margin: 0;padding: 10px;}table {width: 100%;padding: 0 10px;margin: 0;}}</style>";
-    html += "<script>function toggleSwitcherChange(){var enabled = document.getElementById(\"switcher\").checked;document.getElementById(\"switcherHidden\").disabled = enabled;}function switchIpField(e){console.log(\"switch\");console.log(e);var target=e.srcElement||e.target;var maxLength=parseInt(target.attributes[\"maxlength\"].value,10);var myLength=target.value.length;if(myLength>=maxLength){var next=target.nextElementSibling;if(next!=null){if(next.className.includes(\"IP\")){next.focus();}}}else if(myLength==0){var previous=target.previousElementSibling;if(previous!=null){if(previous.className.includes(\"IP\")){previous.focus();}}}}function ipFieldFocus(e){console.log(\"focus\");console.log(e);var target=e.srcElement||e.target;target.select();}function load(){var containers=document.getElementsByClassName(\"IP\");for(var i=0;i<containers.length;i++){var container=containers[i];container.oninput=switchIpField;container.onfocus=ipFieldFocus;}containers=document.getElementsByClassName(\"tIP\");for(var i=0;i<containers.length;i++){var container=containers[i];container.oninput=switchIpField;container.onfocus=ipFieldFocus;}toggleStaticIPFields();}function toggleStaticIPFields(){var enabled=document.getElementById(\"staticIP\").checked;document.getElementById(\"staticIPHidden\").disabled=enabled;var staticIpFields=document.getElementsByClassName('tIP');for(var i=0;i<staticIpFields.length;i++){staticIpFields[i].disabled=!enabled;}}</script><style>a{color:#0F79E0}</style><body style=\"font-family:Verdana;white-space:nowrap;\"onload=\"load()\"><table cellpadding=\"2\"style=\"width:100%\"><tr class=\"s777777\"style=\"color:#ffffff;font-size:.8em;\"><td colspan=\"3\"><h1>&nbsp;" +
+    html += "<script>function changeAdvancedOptions(state) { var elements = document.querySelectorAll(\".advanced\"); var button = document.querySelector(\".advButton\"); if (state == false) { elements.forEach(function (element) { element.style.display = \"table-row\"; }); button.innerHTML = \"Ukryj zazwansowane ustawienia\"; advancedOptions = true;} else { elements.forEach(function (element) { element.style.display = \"none\"; }); button.innerHTML = \"Pokaż zazwansowane ustawienia\"; advancedOptions = false;} } let advancedOptions = false;function sendChangeSwichRequest() { if (document.querySelector(\"#switcherHidden\").disabled) { fetchSwitchState(true); alert(\"Wysłano polecenie zmiany miksera video na mikser 2\"); } else { fetchSwitchState(false); alert(\"Wysłano polecenie zmiany miksera video na mikser 1\"); } }function fetchSwitchState(state) {const urlslong = \"";
+    html += settings.requestURLs;
+    html += "\"; const urls = urlslong.split(\",\"); const switcherValue = state; urls.forEach((url) => { const requestOptions = { method: \"POST\", headers: { \"Content-Type\": \"application/x-www-form-urlencoded\", }, body: `switcher=${switcherValue}`, }; fetch(url, requestOptions) .then((response) => { if (!response.ok) { throw new Error(`Błąd HTTP! Kod: ${response.status}`); } return response.text(); }) .then((data) => { console.log(`Odpowiedź z ${url}: ${data}`); }) .catch((error) => { console.error(`Błąd: ${error.message}`); }); }); }  function validateIP() {if (document.querySelector(\"#staticIPHidden\").disabled) { function validateNetwork(ip1Array, ip2Array, maskArray) { const ip1ArrayAsArray = Array.from(ip1Array); const ip2ArrayAsArray = Array.from(ip2Array); const maskArrayAsArray = Array.from(maskArray); if (maskArrayAsArray.some((octet) => octet < 0 || octet > 255)) { console.log(\"Błędna maska sieci.\"); alert(\"Błędna maska sieci.\\n \" + maskArrayAsArray); return 0; } if ( ip1ArrayAsArray.some((octet) => octet < 0 || octet > 255) || ip2ArrayAsArray.some((octet) => octet < 0 || octet > 255) ) { console.log(\"Błędny format adresu IP.\"); alert(\"Błędny format adresu IP lub maski.\\n\" + ip1ArrayAsArray + \" oraz \" + ip2ArrayAsArray); return 0; } for (let i = 0; i < 4; i++) { if ((ip1ArrayAsArray[i] & maskArrayAsArray[i]) !== (ip2ArrayAsArray[i] & maskArrayAsArray[i])) { console.log(\"Adresy nie należą do tej samej sieci.\"); alert(\"Adresy nie należą do tej samej sieci.\\n \" + ip1ArrayAsArray + \" oraz \" + ip2ArrayAsArray); return 0; } } console.log(\"wszystko działa\"); return 1; } var ipaddres = []; document.querySelectorAll(\".tip\").forEach(function (element) { ipaddres.push(element.value); }); var mask = []; document.querySelectorAll(\".tm\").forEach(function (element) { mask.push(element.value); }); var gateway = []; document.querySelectorAll(\".tg\").forEach(function (element) { gateway.push(element.value); }); var mixer1 = []; document.querySelectorAll(\".mip1\").forEach(function (element) { mixer1.push(element.value); }); var mixer2 = []; document.querySelectorAll(\".mip2\").forEach(function (element) { mixer2.push(element.value); }); if (!validateNetwork(ipaddres, gateway, mask)) { console.log(\"cos nie działa\"); } else if (!validateNetwork(ipaddres, mixer1, mask)) { console.log(\"cos nie działa\"); } else if (!validateNetwork(ipaddres, mixer2, mask)) {  console.log(\"cos nie działa\"); } }} function toggleSwitcherChange(){var enabled = document.getElementById(\"switcher\").checked;document.getElementById(\"switcherHidden\").disabled = enabled;}function switchIpField(e){console.log(\"switch\");console.log(e);var target=e.srcElement||e.target;var maxLength=parseInt(target.attributes[\"maxlength\"].value,10);var myLength=target.value.length;if(myLength>=maxLength){var next=target.nextElementSibling;if(next!=null){if(next.className.includes(\"IP\")){next.focus();}}}else if(myLength==0){var previous=target.previousElementSibling;if(previous!=null){if(previous.className.includes(\"IP\")){previous.focus();}}}}function ipFieldFocus(e){console.log(\"focus\");console.log(e);var target=e.srcElement||e.target;target.select();}function load(){var containers=document.getElementsByClassName(\"IP\");for(var i=0;i<containers.length;i++){var container=containers[i];container.oninput=switchIpField;container.onfocus=ipFieldFocus;}containers=document.getElementsByClassName(\"tIP\");for(var i=0;i<containers.length;i++){var container=containers[i];container.oninput=switchIpField;container.onfocus=ipFieldFocus;}toggleStaticIPFields();}function toggleStaticIPFields(){var enabled=document.getElementById(\"staticIP\").checked;document.getElementById(\"staticIPHidden\").disabled=enabled;var staticIpFields=document.getElementsByClassName('tIP');for(var i=0;i<staticIpFields.length;i++){staticIpFields[i].disabled=!enabled;}}</script><style>a{color:#0F79E0}</style><body style=\"font-family:Verdana;white-space:nowrap;\"onload=\"load()\"><table cellpadding=\"2\"style=\"width:100%\"><tr class=\"s777777\"style=\"color:#ffffff;font-size:.8em;\"><td colspan=\"3\"><h1>&nbsp;" +
             (String)DISPLAY_NAME +
             "</h1><h2>&nbsp;Status:</h2></td></tr><tr><td>Status połączenia:</td><td colspan=\"2\" style=\"width:75%\">";
     switch (WiFi.status())
@@ -758,7 +763,7 @@ void handleRoot()
         html += "selected";
     html += ">On Air</option></select></td></tr><tr style=\"display:none;\"><td> Jasność diód: </td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"100\"name=\"ledBright\"value=\"";
     html += settings.ledBrightness;
-    html += "\"required/></td></tr><tr style=\"display:none\"><td>Ilość ledów:</td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"1000\"name=\"neoPxAmount\"value=\"";
+    html += "\"required/></td></tr><tr style=\"display:none;\" class=\"advanced\"><td>Ilość ledów:</td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"1000\"name=\"neoPxAmount\"value=\"";
     html += settings.neopixelsAmount;
     html += "\"required/></td></tr><tr><td>Dioda statusu: </td><td><select name=\"neoPxStatus\"><option value=\"";
     html += (String)NEOPIXEL_STATUS_FIRST + "\"";
@@ -782,29 +787,29 @@ void handleRoot()
     html += "\"/></td></tr><tr><td><br></td></tr><tr><td>Użyj statycznego adresu IP: </td><td><input type=\"hidden\"id=\"staticIPHidden\"name=\"staticIP\"value=\"false\"/><input id=\"staticIP\"type=\"checkbox\"name=\"staticIP\"value=\"true\"onchange=\"toggleStaticIPFields()\"";
     if (settings.staticIP)
         html += "checked";
-    html += "/></td></tr><tr><td> Adres IP: </td><td><input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"tIP1\"pattern=\"\\d{0,3}\"value=\"";
+    html += "/></td></tr><tr><td> Adres IP: </td><td><input class=\"tIP tip\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"tIP1\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallyIP[0];
-    html += "\"required/>. <input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"tIP2\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"tIP tip\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"tIP2\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallyIP[1];
-    html += "\"required/>. <input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"tIP3\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"tIP tip\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"tIP3\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallyIP[2];
-    html += "\"required/>. <input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"tIP4\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"tIP tip\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"tIP4\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallyIP[3];
-    html += "\"required/></td></tr><tr><td>Maska sieciowa: </td><td><input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"mask1\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/></td></tr><tr><td>Maska sieciowa: </td><td><input class=\"tIP tm\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"mask1\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallySubnetMask[0];
-    html += "\"required/>. <input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"mask2\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"tIP tm\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"mask2\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallySubnetMask[1];
-    html += "\"required/>. <input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"mask3\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"tIP tm\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"mask3\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallySubnetMask[2];
-    html += "\"required/>. <input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"mask4\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"tIP tm\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"mask4\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallySubnetMask[3];
-    html += "\"required/></td></tr><tr><td>Brama domyślna: </td><td><input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"gate1\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/></td></tr><tr><td>Brama domyślna: </td><td><input class=\"tIP tg\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"gate1\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallyGateway[0];
-    html += "\"required/>. <input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"gate2\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"tIP tg\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"gate2\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallyGateway[1];
-    html += "\"required/>. <input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"gate3\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"tIP tg\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"gate3\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallyGateway[2];
-    html += "\"required/>. <input class=\"tIP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"gate4\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"tIP tg\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"gate4\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.tallyGateway[3];
     html += "\"required/></td></tr>";
     html += "<tr><td><br></td></tr>";
@@ -815,32 +820,35 @@ void handleRoot()
     html += "><input type=\"checkbox\" id=\"switcher\" name=\"switcher\" ";
     if (settings.whichSwicher)
         html += "checked";
-    html += " value=\"true\" onchange=\"toggleSwitcherChange()\"><span class=\"slider round\"></span></label></span><span>Mikser 2</span></td></tr>";
-    html += "<tr><td>Adres IP miksera 1: </td><td><input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP11\"pattern=\"\\d{0,3}\"value=\""; // aIP[swicher number][octet]
+    html += " value=\"true\" onchange=\"toggleSwitcherChange()\"><span class=\"slider round\"></span></label></span><span>Mikser 2</span></td><td><button type=\"button\" onclick=\"sendChangeSwichRequest()\" style=\"border-radius:6px;background-color: #07b50c !important;-webkit-appearance: none; accent-color: #07b50c !important;color: white;padding: 5px 10px;cursor: pointer;\">Wyślij do wszystkich</button></td></tr>";
+    html += "<tr style=\"display:none;\" class=\"advanced\"><td>URL urządzeń do automatycznej zmiany miksera</td><td><input type=\"text\" size=\"34\" maxlength=\"112\" name=\"requestURLs\" value=\"";
+    html += settings.requestURLs;
+    html += "\" required></td></tr>";
+    html += "<tr><td>Adres IP miksera 1: </td><td><input class=\"IP mip1\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP11\"pattern=\"\\d{0,3}\"value=\""; // aIP[swicher number][octet]
     html += settings.switcherIP1[0];
-    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP12\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"IP mip1\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP12\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.switcherIP1[1];
-    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP13\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"IP mip1\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP13\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.switcherIP1[2];
-    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP14\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"IP mip1\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP14\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.switcherIP1[3];
     html += "\"required/></tr>";
-    html += "<tr><td>Adres IP miksera 2: </td><td><input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP21\"pattern=\"\\d{0,3}\"value=\"";
+    html += "<tr><td>Adres IP miksera 2: </td><td><input class=\"IP mip2\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP21\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.switcherIP2[0];
-    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP22\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"IP mip2\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP22\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.switcherIP2[1];
-    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP23\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"IP mip2\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP23\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.switcherIP2[2];
-    html += "\"required/>. <input class=\"IP\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP24\"pattern=\"\\d{0,3}\"value=\"";
+    html += "\"required/>. <input class=\"IP mip2\"type=\"text\"size=\"3\"maxlength=\"3\"name=\"aIP24\"pattern=\"\\d{0,3}\"value=\"";
     html += settings.switcherIP2[3];
     html += "\"required/></tr>";
-    html += "<tr style=\"display:none\"><td>UPDATE URL</td><td><input type=\"text\" size=\"34\" maxlength=\"30\" name=\"updateURL\" value=\"";
+    html += "<tr style=\"display:none;\" class=\"advanced\"><td>Adres URL do serwera aktualizacji</td><td><input type=\"text\" size=\"34\" maxlength=\"30\" name=\"updateURL\" value=\"";
     html += settings.updateURL;
     html += "\" required></td></tr>";
-    html += "<tr style=\"display:none\"><td>UPDATE port</td><td><input type=\"number\" size=\"5\" min=\"1\" max=\"65536\" name=\"updateURLPort\" value=\"";
+    html += "<tr style=\"display:none;\" class=\"advanced\"><td>Port serwera aktualizacji</td><td><input type=\"number\" size=\"5\" min=\"1\" max=\"65536\" name=\"updateURLPort\" value=\"";
     html += settings.updateURLPort;
     html += "\" required></td></tr>";
-    html += "<tr><td><br></td></tr><tr><td/><td class=\"fr\"><input type=\"submit\"value=\"Zapisz zmiany\"/></td></tr></form><tr class=\"cccccc\"style=\"font-size: .8em;\"><td colspan=\"3\"><p>&nbsp;Stworzone przez <a href=\"https://github.com/Dodo765\" target=\"_blank\">Dominik Kawalec</a></p><p>&nbsp;Napisane w oparciu o bibliotekę <a href=\"https://github.com/kasperskaarhoj/SKAARHOJ-Open-Engineering/tree/master/ArduinoLibs\" target=\"_blank\">SKAARHOJ</a></p></td></tr></table></body></html>";
+    html += "<tr><td><br></td></tr><tr><td><button class=\"advButton\" type=\"button\" onclick=\"changeAdvancedOptions(advancedOptions)\" style=\"border-radius:6px;background-color: #07b50c !important;-webkit-appearance: none; accent-color: #07b50c !important;color: white;padding: 5px 10px;cursor: pointer;\"> Pokaż zaawansowane ustawienia </button></td></td><td class=\"fr\"><input type=\"submit\"value=\"Zapisz zmiany\" onmouseover=\"validateIP()\"/></td></tr></form><tr class=\"cccccc\"style=\"font-size: .8em;\"><td colspan=\"3\"><p>&nbsp;Stworzone przez <a href=\"https://github.com/Dodo765\" target=\"_blank\">Dominik Kawalec</a></p><p>&nbsp;Napisane w oparciu o bibliotekę <a href=\"https://github.com/kasperskaarhoj/SKAARHOJ-Open-Engineering/tree/master/ArduinoLibs\" target=\"_blank\">SKAARHOJ</a></p></td></tr></table></body></html>";
     server.send(200, "text/html", html);
 }
 
@@ -997,6 +1005,10 @@ void handleSave()
             else if (var == "updateURLPort")
             {
                 settings.updateURLPort = val.toInt();
+            }
+            else if (var == "requestURLs")
+            {
+                val.toCharArray(settings.requestURLs, (uint8_t)112);
             }
         }
 

@@ -61,10 +61,102 @@
 				staticIpFields[i].disabled = !enabled;
 			}
 		}
-        function toggleSwitcherChange(){
-            var enabled = document.getElementById("switcher").checked;
+
+		function toggleSwitcherChange() {
+			var enabled = document.getElementById("switcher").checked;
 			document.getElementById("switcherHidden").disabled = enabled;
-        }
+		}
+
+		function validateIP() {
+			if (document.querySelector("staticIPHidden").disabled) {
+				function validateNetwork(ip1Array, ip2Array, maskArray) {
+					const ip1ArrayAsArray = Array.from(ip1Array);
+					const ip2ArrayAsArray = Array.from(ip2Array);
+					const maskArrayAsArray = Array.from(maskArray);
+					console.log(ip1ArrayAsArray);
+					console.log(ip2ArrayAsArray);
+					console.log(maskArrayAsArray);
+
+					if (maskArrayAsArray.some((octet) => octet < 0 || octet > 255)) {
+						console.log("Błędna maska sieci.");
+						alert("Błędna maska sieci.\n " + maskArrayAsArray);
+						return 0;
+					}
+					if (
+						ip1ArrayAsArray.some((octet) => octet < 0 || octet > 255) ||
+						ip2ArrayAsArray.some((octet) => octet < 0 || octet > 255)
+					) {
+						console.log("Błędny format adresu IP.");
+						alert("Błędny format adresu IP lub maski.\n" + ip1ArrayAsArray + " oraz " + ip2ArrayAsArray);
+						return 0;
+					}
+					for (let i = 0; i < 4; i++) {
+						if ((ip1ArrayAsArray[i] & maskArrayAsArray[i]) !== (ip2ArrayAsArray[i] & maskArrayAsArray[i])) {
+							console.log("Adresy nie należą do tej samej sieci.");
+							alert("Adresy nie należą do tej samej sieci.\n " + ip1ArrayAsArray + " oraz " + ip2ArrayAsArray);
+							return 0;
+						}
+					}
+					console.log("wszystko działa");
+					return 1;
+				}
+			}
+
+			var ipaddres = [];
+			document.querySelectorAll(".tip").forEach(function (element) {
+				ipaddres.push(element.value);
+			});
+			var mask = [];
+			document.querySelectorAll(".tm").forEach(function (element) {
+				mask.push(element.value);
+			});
+			var gateway = [];
+			document.querySelectorAll(".tg").forEach(function (element) {
+				gateway.push(element.value);
+			});
+			var mixer1 = [];
+			document.querySelectorAll(".mip1").forEach(function (element) {
+				mixer1.push(element.value);
+			});
+			var mixer2 = [];
+			document.querySelectorAll(".mip2").forEach(function (element) {
+				mixer2.push(element.value);
+			});
+
+			if (!validateNetwork(ipaddres, gateway, mask)) {
+				console.log("cos nie działa");
+			} else if (!validateNetwork(ipaddres, mixer1, mask)) {
+				console.log("cos nie działa");
+			} //else if (!validateNetwork(ipaddres, mixer2, mask)) {
+			//	console.log("cos nie działa");
+			//}
+		}
+		function sendChangeSwichRequest() {
+			if (document.querySelector("#switcherHidden").disabled) {
+				fetchSwitchState(true);
+				alert("Wysłano polecenie zmiany miksera video na mikser 2");
+			} else {
+				fetchSwitchState(false);
+				alert("Wysłano polecenie zmiany miksera video na mikser 1");
+			}
+		}
+		function changeAdvancedOptions(state) {
+			var elements = document.querySelectorAll(".advanced");
+			var button = document.querySelector(".advButton");
+			if (state == false) {
+				elements.forEach(function (element) {
+					element.style.display = "inline-block";
+				});
+				button.innerHTML = "Ukryj zazwansowane ustawienia";
+			} else {
+				elements.forEach(function (element) {
+					element.style.display = "none";
+				});
+				button.innerHTML = "Pokaż zazwansowane ustawienia";
+			}
+			advancedOptions = !advancedOptions;
+		}
+		let advancedOptions = false;
 	</script>
 
 	<style>
@@ -243,28 +335,136 @@
 				<tr>
 					<td>Tally Light IP:</td>
 					<td>
-						<input class="tIP" type="text" size="3" maxlength="3" name="tIP1" pattern="\d{0,3}" value="@" required />.
-						<input class="tIP" type="text" size="3" maxlength="3" name="tIP2" pattern="\d{0,3}" value="@" required />.
-						<input class="tIP" type="text" size="3" maxlength="3" name="tIP3" pattern="\d{0,3}" value="@" required />.
-						<input class="tIP" type="text" size="3" maxlength="3" name="tIP4" pattern="\d{0,3}" value="@" required />
+						<input
+							class="tIP tip"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="tIP1"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="tIP tip"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="tIP2"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="tIP tip"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="tIP3"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="tIP tip"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="tIP4"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>
 					</td>
 				</tr>
 				<tr>
 					<td>Subnet mask:</td>
 					<td>
-						<input class="tIP" type="text" size="3" maxlength="3" name="mask1" pattern="\d{0,3}" value="@" required />.
-						<input class="tIP" type="text" size="3" maxlength="3" name="mask2" pattern="\d{0,3}" value="@" required />.
-						<input class="tIP" type="text" size="3" maxlength="3" name="mask3" pattern="\d{0,3}" value="@" required />.
-						<input class="tIP" type="text" size="3" maxlength="3" name="mask4" pattern="\d{0,3}" value="@" required />
+						<input
+							class="tIP tm"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="mask1"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="tIP tm"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="mask2"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="tIP tm"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="mask3"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="tIP tm"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="mask4"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>
 					</td>
 				</tr>
 				<tr>
 					<td>Gateway:</td>
 					<td>
-						<input class="tIP" type="text" size="3" maxlength="3" name="gate1" pattern="\d{0,3}" value="@" required />.
-						<input class="tIP" type="text" size="3" maxlength="3" name="gate2" pattern="\d{0,3}" value="@" required />.
-						<input class="tIP" type="text" size="3" maxlength="3" name="gate3" pattern="\d{0,3}" value="@" required />.
-						<input class="tIP" type="text" size="3" maxlength="3" name="gate4" pattern="\d{0,3}" value="@" required />
+						<input
+							class="tIP tg"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="gate1"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="tIP tg"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="gate2"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="tIP tg"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="gate3"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="tIP tg"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="gate4"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>
 					</td>
 				</tr>
 				<tr>
@@ -273,10 +473,46 @@
 				<tr>
 					<td>ATEM switcher IP:</td>
 					<td>
-						<input class="IP" type="text" size="3" maxlength="3" name="aIP1" pattern="\d{0,3}" value="@" required />.
-						<input class="IP" type="text" size="3" maxlength="3" name="aIP2" pattern="\d{0,3}" value="@" required />.
-						<input class="IP" type="text" size="3" maxlength="3" name="aIP3" pattern="\d{0,3}" value="@" required />.
-						<input class="IP" type="text" size="3" maxlength="3" name="aIP4" pattern="\d{0,3}" value="@" required />
+						<input
+							class="IP mip1"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="aIP1"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="IP mip1"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="aIP2"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="IP mip1"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="aIP3"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>.
+						<input
+							class="IP mip1"
+							type="text"
+							size="3"
+							maxlength="3"
+							name="aIP4"
+							pattern="\d{0,3}"
+							value="@"
+							required
+						/>
 					</td>
 				</tr>
 
@@ -286,7 +522,7 @@
 				<tr>
 					<td />
 					<td style="float: right">
-						<input type="submit" value="Save Changes" />
+						<input type="submit" value="Save Changes" onmouseover="validateIP()" />
 					</td>
 				</tr>
 			</form>
