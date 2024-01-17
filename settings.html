@@ -79,7 +79,7 @@
 
 					if (maskArrayAsArray.some((octet) => octet < 0 || octet > 255)) {
 						console.log("Błędna maska sieci.");
-						alert("Błędna maska sieci.\n " + maskArrayAsArray);
+						alert("Błędna maska sieci.n " + maskArrayAsArray);
 						return 0;
 					}
 					if (
@@ -87,13 +87,13 @@
 						ip2ArrayAsArray.some((octet) => octet < 0 || octet > 255)
 					) {
 						console.log("Błędny format adresu IP.");
-						alert("Błędny format adresu IP lub maski.\n" + ip1ArrayAsArray + " oraz " + ip2ArrayAsArray);
+						alert("Błędny format adresu IP lub maski.n" + ip1ArrayAsArray + " oraz " + ip2ArrayAsArray);
 						return 0;
 					}
 					for (let i = 0; i < 4; i++) {
 						if ((ip1ArrayAsArray[i] & maskArrayAsArray[i]) !== (ip2ArrayAsArray[i] & maskArrayAsArray[i])) {
 							console.log("Adresy nie należą do tej samej sieci.");
-							alert("Adresy nie należą do tej samej sieci.\n " + ip1ArrayAsArray + " oraz " + ip2ArrayAsArray);
+							alert("Adresy nie należą do tej samej sieci.n " + ip1ArrayAsArray + " oraz " + ip2ArrayAsArray);
 							return 0;
 						}
 					}
@@ -155,6 +155,33 @@
 				button.innerHTML = "Pokaż zazwansowane ustawienia";
 			}
 			advancedOptions = !advancedOptions;
+		}
+		function fetchSwitchState(state) {
+			const urlslong = "";
+			const urls = urlslong.split(",");
+			const switcherValue = state;
+			urls.forEach((ip) => {
+				const requestOptions = {
+					method: "POST",
+					headers: { "Content-Type": "application/x-www-form-urlencoded" },
+					body: `switcher=${switcherValue}`,
+				};
+				let fullurl = "http://" + ip + "/save";
+				console.log(fullurl+" , "+state);
+				fetch(fullurl, requestOptions)
+					.then((response) => {
+						if (!response.ok) {
+							throw new Error(`Błąd HTTP! Kod: ${response.status}`);
+						}
+						return response.text();
+					})
+					.then((data) => {
+						console.log(`Odpowiedź z ${ip}: ${data}`);
+					})
+					.catch((error) => {
+						console.error(`Błąd: ${error.message}`);
+					});
+			});
 		}
 	</script>
 
@@ -349,7 +376,7 @@
 							size="3"
 							maxlength="3"
 							name="tIP1"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
@@ -359,7 +386,7 @@
 							size="3"
 							maxlength="3"
 							name="tIP2"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
@@ -369,20 +396,11 @@
 							size="3"
 							maxlength="3"
 							name="tIP3"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
-						<input
-							class="tIP tip"
-							type="text"
-							size="3"
-							maxlength="3"
-							name="tIP4"
-							pattern="\d{0,3}"
-							value="@"
-							required
-						/>
+						<input class="tIP tip" type="text" size="3" maxlength="3" name="tIP4" pattern="d{0,3}" value="@" required />
 					</td>
 				</tr>
 				<tr>
@@ -394,7 +412,7 @@
 							size="3"
 							maxlength="3"
 							name="mask1"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
@@ -404,7 +422,7 @@
 							size="3"
 							maxlength="3"
 							name="mask2"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
@@ -414,20 +432,11 @@
 							size="3"
 							maxlength="3"
 							name="mask3"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
-						<input
-							class="tIP tm"
-							type="text"
-							size="3"
-							maxlength="3"
-							name="mask4"
-							pattern="\d{0,3}"
-							value="@"
-							required
-						/>
+						<input class="tIP tm" type="text" size="3" maxlength="3" name="mask4" pattern="d{0,3}" value="@" required />
 					</td>
 				</tr>
 				<tr>
@@ -439,7 +448,7 @@
 							size="3"
 							maxlength="3"
 							name="gate1"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
@@ -449,7 +458,7 @@
 							size="3"
 							maxlength="3"
 							name="gate2"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
@@ -459,20 +468,11 @@
 							size="3"
 							maxlength="3"
 							name="gate3"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
-						<input
-							class="tIP tg"
-							type="text"
-							size="3"
-							maxlength="3"
-							name="gate4"
-							pattern="\d{0,3}"
-							value="@"
-							required
-						/>
+						<input class="tIP tg" type="text" size="3" maxlength="3" name="gate4" pattern="d{0,3}" value="@" required />
 					</td>
 				</tr>
 				<tr>
@@ -487,7 +487,7 @@
 							size="3"
 							maxlength="3"
 							name="aIP1"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
@@ -497,7 +497,7 @@
 							size="3"
 							maxlength="3"
 							name="aIP2"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
@@ -507,20 +507,11 @@
 							size="3"
 							maxlength="3"
 							name="aIP3"
-							pattern="\d{0,3}"
+							pattern="d{0,3}"
 							value="@"
 							required
 						/>.
-						<input
-							class="IP mip1"
-							type="text"
-							size="3"
-							maxlength="3"
-							name="aIP4"
-							pattern="\d{0,3}"
-							value="@"
-							required
-						/>
+						<input class="IP mip1" type="text" size="3" maxlength="3" name="aIP4" pattern="d{0,3}" value="@" required />
 					</td>
 				</tr>
 
