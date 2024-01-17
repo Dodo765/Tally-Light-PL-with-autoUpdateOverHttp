@@ -4,7 +4,7 @@
 // FIRMWARE VERSION !!!
 //
 
-float firmware_version = 1.0;
+float firmware_version = 1.01;
 
 //
 //
