@@ -1,5 +1,5 @@
 function fetchSwitchState(state) {
-	const urlslong = "http://192.168.100.94/save,http://192.168.100.222/";
+	const urlslong = "http://192.168.100.94/save";
 
 	const urls = urlslong.split(",");
 
