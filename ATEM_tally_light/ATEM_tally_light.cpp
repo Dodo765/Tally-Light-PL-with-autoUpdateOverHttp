@@ -4,7 +4,7 @@
 // FIRMWARE VERSION !!!
 //
 
-float firmware_version = 1.02;
+float firmware_version = 1.03;
 
 //
 //
@@ -102,6 +102,7 @@ struct Settings
     char updateURL[32] = "";
     int updateURLPort;
     char requestURLs[112] = "";
+    bool colorTerminal = false;
 };
 
 Settings settings;
@@ -352,6 +353,49 @@ void setup()
     changeState(STATE_CONNECTING_TO_WIFI);
 }
 
+/* Save settings to FLASH and restart ESP
+(not working with WiFi settings!!!)
+*/
+void updateSettings()
+{
+    EEPROM.put(0, settings);
+    EEPROM.commit();
+
+    // Delay to let data be saved, and the response to be sent properly to the client
+    server.close(); // Close server to flush and ensure the response gets to the client
+    delay(100);
+
+    // Change into STA mode to disable softAP
+    WiFi.mode(WIFI_STA);
+    delay(100); // Give it time to switch over to STA mode (this is important on the ESP32 at least)
+
+    // Delay to apply settings before restart
+    delay(100);
+    ESP.restart();
+}
+
+/* print all of the nearby wifi networks */
+void prinScanResult(int networksFound)
+{
+    Serial.printf("%d network(s) found\n", networksFound);
+    for (int i = 0; i < networksFound; i++)
+    {
+        Serial.printf("%d: %s, Ch:%d (%ddBm) %s\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
+    }
+
+    Serial.println("To Escape press any key");
+    Serial.flush();
+    while (!Serial.available())
+    {
+        // waiting for serial data
+    }
+    String str = Serial.readStringUntil('\n');
+    if (str.length() > 0)
+    {
+        updateSettings();
+    }
+}
+
 void loop()
 {
     bytesAvailable = Serial.available();
@@ -365,6 +409,36 @@ void loop()
         // improv.handleByte(readByte);
     }
 
+    if (bytesAvailable && (readString == "h" || readString == "help"))
+    {
+        if (settings.colorTerminal)
+        {
+            Serial.println();
+            Serial.println("All of the commands: ");
+            Serial.println();
+            Serial.println("* '\u001b[32mr\u001b[37m'/'\u001b[32mrestart\u001b[37m' - restart ESP");
+            Serial.println("* '\u001b[32mcls\u001b[37m'/'\u001b[32mclear\u001b[37m' - clear terminal (not all terminal compatible)");
+            Serial.println("* '\u001b[32mcolor\u001b[37m' - turn on/off colored terminal");
+            Serial.println("* '\u001b[32mipconfig\u001b[37m' - simple IP info");
+            Serial.println("* '\u001b[32mip a\u001b[37m'/'ipconfig /all\u001b[37m' - advanced IP info");
+            Serial.println("* '\u001b[32mip\u001b[37m'/'\u001b[32mip set\u001b[37m' - change IP addresses");
+            Serial.println("* '\u001b[32mwifi set\u001b[37m'/'\u001b[32mwifi\u001b[37m' - change WiFi SSID and password for ESP");
+        }
+        else
+        {
+            Serial.println();
+            Serial.println("All of the commands: ");
+            Serial.println();
+            Serial.println("* 'r'/'restart' - restart ESP");
+            Serial.println("* 'cls'/'clear' - clear terminal (not all terminal compatible)");
+            Serial.println("* 'color' - turn on/off colored terminal");
+            Serial.println("* 'ipconfig' - simple IP info");
+            Serial.println("* 'ip a'/'ipconfig /all' - advanced IP info");
+            Serial.println("* 'ip'/'ip set' - change IP addresses");
+            Serial.println("* 'wifi set'/'wifi' - change WiFi SSID and password for ESP");
+        }
+    }
+
     if (bytesAvailable && (readString == "r" || readString == "restart"))
     {
         Serial.println("Restarting ...");
@@ -376,6 +450,29 @@ void loop()
         Serial.print("\033[2J\033[H");
     }
 
+    if (bytesAvailable && (readString == "color"))
+    {
+        Serial.println("Do you want to have color terminal enabled? [yes/no]");
+        while (!Serial.available())
+        {
+            // waiting for serial data
+        }
+        String answer = Serial.readStringUntil('\n');
+        answer.trim();
+        answer.toLowerCase();
+        if (answer == "yes" || answer == "y")
+        {
+            Serial.println("Color terminal enabled!");
+            settings.colorTerminal = true;
+        }
+        else
+        {
+            Serial.println("Color terminal disabled!");
+            settings.colorTerminal = false;
+        }
+        updateSettings();
+    }
+
     if (bytesAvailable && (readString == "ipconfig"))
     {
         Serial.println("IP:                  " + WiFi.localIP().toString());
@@ -383,16 +480,36 @@ void loop()
         Serial.println("Gateway IP:          " + WiFi.gatewayIP().toString());
         // Serial.println("DNS:                 " + WiFi.dnsIP().toString());
     }
+
     if (bytesAvailable && (readString == "ip a" || readString == "ipconfig /all"))
     {
         Serial.println("IP:                  " + WiFi.localIP().toString());
         Serial.println("Subnet Mask:         " + WiFi.subnetMask().toString());
         Serial.println("Gateway IP:          " + WiFi.gatewayIP().toString());
         Serial.println("DNS:                 " + WiFi.dnsIP().toString());
+        Serial.println("MAC:                 " + WiFi.macAddress());
     }
 
-    if (bytesAvailable && (readString == "ip" || readString == "lan set" || readString == "ip set"))
+    if (bytesAvailable && (readString == "ip" || readString == "ip set"))
     {
+        Serial.print("Configure automaticly? (DHCP) [Yes/No]: ");
+        while (!Serial.available())
+        {
+            // Waiting for serial to be available
+        }
+        String answer = Serial.readStringUntil('\n');
+        answer.trim();
+        answer.toLowerCase();
+        Serial.println(answer);
+        if (answer == "yes" || answer == "y")
+        {
+            settings.staticIP = false;
+            delay(100);
+            updateSettings();
+        }
+
+        Serial.flush();
+
         Serial.print("Write new IP address: ");
 
         while (!Serial.available())
@@ -463,26 +580,15 @@ void loop()
                     Serial.println(gateway.toString()); // setting new gateway
                     settings.tallyGateway = gateway;
 
-                    EEPROM.put(0, settings);
-                    EEPROM.commit();
+                    settings.staticIP = true;
 
-                    // Delay to let data be saved, and the response to be sent properly to the client
-                    server.close(); // Close server to flush and ensure the response gets to the client
-                    delay(100);
-
-                    // Change into STA mode to disable softAP
-                    WiFi.mode(WIFI_STA);
-                    delay(100); // Give it time to switch over to STA mode (this is important on the ESP32 at least)
-
-                    // Delay to apply settings before restart
-                    delay(100);
-                    ESP.restart();
+                    updateSettings();
                 }
             }
         }
     }
 
-    if (bytesAvailable && (readString == "wlan set"))
+    if (bytesAvailable && (readString == "wifi set" || readString == "wifi"))
     {
         String ssid = "", pwd = "";
         Serial.print("Write new SSID: ");
@@ -558,7 +664,12 @@ void loop()
 
     if (bytesAvailable)
     {
-        Serial.print("\u001b[32mroot\u001b[34m:$ \u001b[37m");
+        if (settings.colorTerminal)
+            Serial.print("\u001b[32mroot\u001b[34m:$ \u001b[37m");
+        else
+        {
+            Serial.print("root:$ ");
+        }
     }
 
     switch (state)
@@ -614,7 +725,12 @@ void loop()
             }
             firstRun = false;
 
-            Serial.print("\u001b[32mroot\u001b[34m:$ \u001b[37m");
+            if (settings.colorTerminal)
+                Serial.print("\u001b[32mroot\u001b[34m:$ \u001b[37m");
+            else
+            {
+                Serial.print("root:$ ");
+            }
         }
         atemSwitcher.runLoop();
         if (atemSwitcher.isConnected())
