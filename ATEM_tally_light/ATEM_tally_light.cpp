@@ -110,6 +110,7 @@ bool firstRun = true;
 
 int bytesAvailable = false;
 uint8_t readByte;
+String readString;
 
 void update_started()
 {
@@ -356,14 +357,208 @@ void loop()
     bytesAvailable = Serial.available();
     if (bytesAvailable > 0)
     {
-        readByte = Serial.read();
-        improv.handleByte(readByte);
+        // readByte = Serial.read();
+        Serial.flush();
+        readString = Serial.readStringUntil('\n');
+        readString.trim();
+        Serial.println(readString);
+        // improv.handleByte(readByte);
     }
 
-    if ((bytesAvailable && readByte == 'r'))
+    if (bytesAvailable && (readString == "r" || readString == "restart"))
     {
         Serial.println("Restarting ...");
         ESP.restart();
+    }
+
+    if (bytesAvailable && (readString == "cls" || readString == "clear"))
+    {
+        Serial.print("\033[2J\033[H");
+    }
+
+    if (bytesAvailable && (readString == "ipconfig"))
+    {
+        Serial.println("IP:                  " + WiFi.localIP().toString());
+        Serial.println("Subnet Mask:         " + WiFi.subnetMask().toString());
+        Serial.println("Gateway IP:          " + WiFi.gatewayIP().toString());
+        // Serial.println("DNS:                 " + WiFi.dnsIP().toString());
+    }
+    if (bytesAvailable && (readString == "ip a" || readString == "ipconfig /all"))
+    {
+        Serial.println("IP:                  " + WiFi.localIP().toString());
+        Serial.println("Subnet Mask:         " + WiFi.subnetMask().toString());
+        Serial.println("Gateway IP:          " + WiFi.gatewayIP().toString());
+        Serial.println("DNS:                 " + WiFi.dnsIP().toString());
+    }
+
+    if (bytesAvailable && (readString == "ip" || readString == "lan set" || readString == "ip set"))
+    {
+        Serial.print("Write new IP address: ");
+
+        while (!Serial.available())
+        {
+            // Waiting for serial to be available
+        }
+        // trimming off whitespaces
+        String ipString = Serial.readStringUntil('\n');
+        ipString.trim();
+        IPAddress ip = IPAddress();
+        Serial.println();
+
+        // checking if we have a valid IP address
+        if (!ip.fromString(ipString))
+        {
+            Serial.println("Invalid IP address.");
+        }
+        else
+        {
+            Serial.print("New IP address: ");
+            Serial.println(ip.toString());
+            // setting new ip address
+            settings.tallyIP = ip;
+
+            // MASK
+            Serial.print("Write new mask: ");
+
+            while (!Serial.available())
+            {
+                // Waiting for serial to be available
+            }
+            // trimming off whitespaces
+            String maskString = Serial.readStringUntil('\n');
+            maskString.trim();
+            IPAddress mask = IPAddress();
+            Serial.println();
+
+            // checking if we have a valid mask
+            if (!mask.fromString(maskString))
+            {
+                Serial.println("Invalid mask.");
+            }
+            else
+            {
+                Serial.print("New mask: ");
+                Serial.println(mask.toString());
+                // setting new mask
+                settings.tallySubnetMask = mask;
+
+                // GATEWAY
+                Serial.print("Write new gateway: ");
+
+                while (!Serial.available())
+                { // Waiting for serial to be available
+                } // trimming off whitespaces
+                String gatewayString = Serial.readStringUntil('\n');
+                gatewayString.trim();
+                IPAddress gateway = IPAddress();
+                Serial.println();
+                // checking if we have a valid gateway
+                if (!gateway.fromString(gatewayString))
+                {
+                    Serial.println("Invalid gateway.");
+                }
+                else
+                {
+                    Serial.print("New gateway: ");
+                    Serial.println(gateway.toString()); // setting new gateway
+                    settings.tallyGateway = gateway;
+
+                    EEPROM.put(0, settings);
+                    EEPROM.commit();
+
+                    // Delay to let data be saved, and the response to be sent properly to the client
+                    server.close(); // Close server to flush and ensure the response gets to the client
+                    delay(100);
+
+                    // Change into STA mode to disable softAP
+                    WiFi.mode(WIFI_STA);
+                    delay(100); // Give it time to switch over to STA mode (this is important on the ESP32 at least)
+
+                    // Delay to apply settings before restart
+                    delay(100);
+                    ESP.restart();
+                }
+            }
+        }
+    }
+
+    if (bytesAvailable && (readString == "wlan set"))
+    {
+        String ssid = "", pwd = "";
+        Serial.print("Write new SSID: ");
+        while (!Serial.available())
+        {
+            // Waiting for serial to be available
+        }
+        // trimming off whitespaces
+        String ssidString = Serial.readStringUntil('\n');
+        ssidString.trim();
+        Serial.println();
+        // checking if we have a valid SSID
+        if (!ssidString.length() > 0)
+        {
+            Serial.println("Invalid SSID.");
+        }
+        else
+        {
+            Serial.print("New SSID: ");
+            Serial.println(ssidString);
+            // setting new SSID
+            ssid = ssidString;
+
+            // PASSWORD
+            Serial.print("Write new password: ");
+            while (!Serial.available())
+            {
+                // Waiting for serial to be available
+            }
+            // trimming off whitespaces
+            String pwdString = Serial.readStringUntil('\n');
+            pwdString.trim();
+            Serial.println();
+            // checking if we have a valid SSID
+            if (!pwdString.length() > 0)
+            {
+                Serial.println("Invalid SSID.");
+            }
+            else
+            {
+                Serial.print("New password: ");
+                Serial.println(pwdString);
+                // setting new SSID
+                pwd = pwdString;
+
+                // SAVING settings
+
+                EEPROM.put(0, settings);
+                EEPROM.commit();
+
+                // Delay to let data be saved, and the response to be sent properly to the client
+                server.close(); // Close server to flush and ensure the response gets to the client
+                delay(100);
+
+                // Change into STA mode to disable softAP
+                WiFi.mode(WIFI_STA);
+                delay(100); // Give it time to switch over to STA mode (this is important on the ESP32 at least)
+
+                if (ssid && pwd)
+                {
+                    WiFi.persistent(true); // Needed by ESP8266
+                    // Pass in 'false' as 5th (connect) argument so we don't waste time trying to connect, just save the new SSID/PSK
+                    // 3rd argument is channel - '0' is default. 4th argument is BSSID - 'NULL' is default.
+                    WiFi.begin(ssid.c_str(), pwd.c_str(), 0, NULL, false);
+                }
+
+                // Delay to apply settings before restart
+                delay(100);
+                ESP.restart();
+            }
+        }
+    }
+
+    if (bytesAvailable)
+    {
+        Serial.print("\u001b[32mroot\u001b[34m:$ \u001b[37m");
     }
 
     switch (state)
@@ -418,6 +613,8 @@ void loop()
                 Serial.println((String) "Switcher IP:         " + settings.switcherIP2[0] + "." + settings.switcherIP2[1] + "." + settings.switcherIP2[2] + "." + settings.switcherIP2[3]);
             }
             firstRun = false;
+
+            Serial.print("\u001b[32mroot\u001b[34m:$ \u001b[37m");
         }
         atemSwitcher.runLoop();
         if (atemSwitcher.isConnected())
