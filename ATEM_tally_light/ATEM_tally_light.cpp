@@ -248,6 +248,8 @@ void onImprovWiFiConnectedCb(const char *ssid, const char *password)
 void setup()
 {
     // Start Serial
+    if (settings.colorTerminal)
+        Serial.println("\u001b[37m");
     Serial.begin(115200);
     // for (int z = 0; z < 20; z++)
     //     Serial.println();
@@ -351,6 +353,8 @@ void setup()
 
     // Set state to connecting before entering loop
     changeState(STATE_CONNECTING_TO_WIFI);
+
+    Serial.flush();
 }
 
 /* Save settings to FLASH and restart ESP
@@ -372,28 +376,6 @@ void updateSettings()
     // Delay to apply settings before restart
     delay(100);
     ESP.restart();
-}
-
-/* print all of the nearby wifi networks */
-void prinScanResult(int networksFound)
-{
-    Serial.printf("%d network(s) found\n", networksFound);
-    for (int i = 0; i < networksFound; i++)
-    {
-        Serial.printf("%d: %s, Ch:%d (%ddBm) %s\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
-    }
-
-    Serial.println("To Escape press any key");
-    Serial.flush();
-    while (!Serial.available())
-    {
-        // waiting for serial data
-    }
-    String str = Serial.readStringUntil('\n');
-    if (str.length() > 0)
-    {
-        updateSettings();
-    }
 }
 
 void loop()
@@ -423,6 +405,10 @@ void loop()
             Serial.println("* '\u001b[32mip a\u001b[37m'/'ipconfig /all\u001b[37m' - advanced IP info");
             Serial.println("* '\u001b[32mip\u001b[37m'/'\u001b[32mip set\u001b[37m' - change IP addresses");
             Serial.println("* '\u001b[32mwifi set\u001b[37m'/'\u001b[32mwifi\u001b[37m' - change WiFi SSID and password for ESP");
+            Serial.println("* '\u001b[32mtally\u001b[37m' - change Tally number (no. of camera)");
+            Serial.println("* '\u001b[32mls switcher\u001b[37m'/'\u001b[32mlss\u001b[37m' - show IP addresses of switches");
+            Serial.println("* '\u001b[32mswitcher set ip\u001b[37m' - change switcher IP address");
+            Serial.println("* '\u001b[32mswitcher set active\u001b[37m' - change switcher IP address");
         }
         else
         {
@@ -436,6 +422,10 @@ void loop()
             Serial.println("* 'ip a'/'ipconfig /all' - advanced IP info");
             Serial.println("* 'ip'/'ip set' - change IP addresses");
             Serial.println("* 'wifi set'/'wifi' - change WiFi SSID and password for ESP");
+            Serial.println("* 'tally' - change Tally number (no. of camera)");
+            Serial.println("* 'ls switcher'/'lss' - show IP addresses of switches");
+            Serial.println("* 'switcher set ip' - change switcher IP address");
+            Serial.println("* 'switcher set active' - change switcher IP address");
         }
     }
 
@@ -448,6 +438,105 @@ void loop()
     if (bytesAvailable && (readString == "cls" || readString == "clear"))
     {
         Serial.print("\033[2J\033[H");
+    }
+
+    if (bytesAvailable && (readString == "tally"))
+    {
+        Serial.print("Write Tally Number [1-40]: ");
+        while (!Serial.available())
+        {
+            // waiting for serial data
+        }
+        String nrStr = Serial.readStringUntil('\n');
+        nrStr.trim();
+        int nr = nrStr.toInt();
+        Serial.println(nr);
+        if (nr > 0 && nr < 41)
+        {
+            settings.tallyNo = nr - 1;
+            Serial.println("Tally number is: " + settings.tallyNo);
+            delay(500);
+            updateSettings();
+        }
+        else
+        {
+            Serial.println("Invalid Tally Number!");
+        }
+    }
+
+    if (bytesAvailable && (readString == "switcher set ip"))
+    {
+        Serial.print("Which switcher you want to configure? [1-2]: ");
+        while (!Serial.available())
+        {
+            // waiting for serial data
+        }
+        String nrStr = Serial.readStringUntil('\n');
+        nrStr.trim();
+        int nr = nrStr.toInt();
+        Serial.println(nr);
+        if (nr > 0 && nr < 3)
+        {
+            if (nr == 1)
+                Serial.print("Switcher 1 IP: ");
+            else
+                Serial.print("Switcher 2 IP: ");
+            while (!Serial.available())
+            {
+                // waiting for serial data
+            }
+            String ipStr = Serial.readStringUntil('\n');
+            ipStr.trim();
+            IPAddress ip;
+            Serial.println(ipStr);
+            if (ip.fromString(ipStr))
+            {
+                if (nr == 1)
+                    settings.switcherIP1 = ip;
+                else
+                    settings.switcherIP2 = ip;
+
+                Serial.println("Changed settings successfully");
+                delay(500);
+                updateSettings();
+            }
+            else
+            {
+                Serial.println("Invalid IP!");
+            }
+        }
+        else
+        {
+            Serial.println("Invalid Switcher Number!");
+        }
+    }
+
+    if (bytesAvailable && (readString == "switcher set active"))
+    {
+        Serial.println("Which switcher you want to set as active one? [1-2]: ");
+        while (!Serial.available())
+        {
+            // waiting for serial data
+        }
+        String nrStr = Serial.readStringUntil('\n');
+        nrStr.trim();
+        int nr = nrStr.toInt();
+        Serial.println(nr);
+        if (nr > 0 && nr < 3)
+        {
+            if (nr == 1)
+                settings.whichSwicher = false;
+            else
+                settings.whichSwicher = true;
+            Serial.flush();
+            Serial.println("Changed switcher to " + nr);
+            delay(500);
+            updateSettings();
+        }
+        else
+        {
+            Serial.println("Invalid Switcher Number!");
+        }
     }
 
     if (bytesAvailable && (readString == "color"))
@@ -470,6 +559,7 @@ void loop()
             Serial.println("Color terminal disabled!");
             settings.colorTerminal = false;
         }
+        delay(500);
         updateSettings();
     }
 
@@ -504,7 +594,7 @@ void loop()
         if (answer == "yes" || answer == "y")
         {
             settings.staticIP = false;
-            delay(100);
+            delay(500);
             updateSettings();
         }
 
@@ -582,6 +672,8 @@ void loop()
 
                     settings.staticIP = true;
 
+                    Serial.println("New settings applied.");
+                    delay(500);
                     updateSettings();
                 }
             }
