@@ -378,6 +378,8 @@ void updateSettings()
     ESP.restart();
 }
 
+bool correctCMD;
+
 void loop()
 {
     bytesAvailable = Serial.available();
@@ -387,12 +389,17 @@ void loop()
         Serial.flush();
         readString = Serial.readStringUntil('\n');
         readString.trim();
-        Serial.println(readString);
+        if (settings.colorTerminal)
+            Serial.println("\u001b[33m" + readString + "\u001b[37m");
+        else
+            Serial.println(readString);
+        correctCMD = false;
         // improv.handleByte(readByte);
     }
 
     if (bytesAvailable && (readString == "h" || readString == "help"))
     {
+        correctCMD = true;
         if (settings.colorTerminal)
         {
             Serial.println();
@@ -402,7 +409,7 @@ void loop()
             Serial.println("* '\u001b[32mcls\u001b[37m'/'\u001b[32mclear\u001b[37m' - clear terminal (not all terminal compatible)");
             Serial.println("* '\u001b[32mcolor\u001b[37m' - turn on/off colored terminal");
             Serial.println("* '\u001b[32mipconfig\u001b[37m' - simple IP info");
-            Serial.println("* '\u001b[32mip a\u001b[37m'/'ipconfig /all\u001b[37m' - advanced IP info");
+            Serial.println("* '\u001b[32mip a\u001b[37m'/'\u001b[32mipconfig /all\u001b[37m' - advanced IP info");
             Serial.println("* '\u001b[32mip\u001b[37m'/'\u001b[32mip set\u001b[37m' - change IP addresses");
             Serial.println("* '\u001b[32mwifi set\u001b[37m'/'\u001b[32mwifi\u001b[37m' - change WiFi SSID and password for ESP");
             Serial.println("* '\u001b[32mtally\u001b[37m' - change Tally number (no. of camera)");
@@ -431,17 +438,23 @@ void loop()
 
     if (bytesAvailable && (readString == "r" || readString == "restart"))
     {
+        correctCMD = true;
         Serial.println("Restarting ...");
         ESP.restart();
     }
 
     if (bytesAvailable && (readString == "cls" || readString == "clear"))
     {
-        Serial.print("\033[2J\033[H");
+        correctCMD = true;
+        if (settings.colorTerminal)
+            Serial.print("\033[2J\033[H");
+        else
+            Serial.println("Serial Clear is not supported on your Serial Terminal");
     }
 
-    if (bytesAvailable && (readString == "tally"))
+    if (bytesAvailable && (readString == "tally" || readString == "tallynumber"))
     {
+        correctCMD = true;
         Serial.print("Write Tally Number [1-40]: ");
         while (!Serial.available())
         {
@@ -450,22 +463,29 @@ void loop()
         String nrStr = Serial.readStringUntil('\n');
         nrStr.trim();
         int nr = nrStr.toInt();
-        Serial.println(nr);
+        if (settings.colorTerminal)
+            Serial.println("\u001b[33m" + nrStr + "\u001b[37m");
+        else
+            Serial.println(nr);
         if (nr > 0 && nr < 41)
         {
             settings.tallyNo = nr - 1;
-            Serial.println("Tally number is: " + settings.tallyNo);
+            Serial.println("Tally number saved successfully!");
             delay(500);
             updateSettings();
         }
         else
         {
-            Serial.println("Invalid Tally Number!");
+            if (settings.colorTerminal)
+                Serial.println("\u001b[31mInvalid Tally Number!\u001b[37m");
+            else
+                Serial.println("Invalid Tally Number!");
         }
     }
 
-    if (bytesAvailable && (readString == "switcher set ip"))
+    if (bytesAvailable && (readString == "switcher set ip" || readString == "switcher ip set"))
     {
+        correctCMD = true;
         Serial.print("Which switcher you want to configure? [1-2]: ");
         while (!Serial.available())
         {
@@ -474,7 +494,10 @@ void loop()
         String nrStr = Serial.readStringUntil('\n');
         nrStr.trim();
         int nr = nrStr.toInt();
-        Serial.println(nr);
+        if (settings.colorTerminal)
+            Serial.println("\u001b[33m" + nrStr + "\u001b[37m");
+        else
+            Serial.println(nr);
         if (nr > 0 && nr < 3)
         {
             if (nr == 1)
@@ -488,7 +511,10 @@ void loop()
             String ipStr = Serial.readStringUntil('\n');
             ipStr.trim();
             IPAddress ip;
-            Serial.println(ipStr);
+            if (settings.colorTerminal)
+                Serial.println("\u001b[33m" + ipStr + "\u001b[37m");
+            else
+                Serial.println(ipStr);
             if (ip.fromString(ipStr))
             {
                 if (nr == 1)
@@ -502,18 +528,25 @@ void loop()
             }
             else
             {
-                Serial.println("Invalid IP!");
+                if (settings.colorTerminal)
+                    Serial.println("\u001b[31mInvalid IP!\u001b[37m");
+                else
+                    Serial.println("Invalid IP!");
             }
         }
         else
         {
-            Serial.println("Invalid Switcher Number!");
+            if (settings.colorTerminal)
+                Serial.println("\u001b[31mInvalid Switcher Number!\u001b[37m");
+            else
+                Serial.println("Invalid Switcher Number!");
         }
     }
 
-    if (bytesAvailable && (readString == "switcher set active"))
+    if (bytesAvailable && (readString == "switcher set active" || readString == "switcher active set"))
     {
-        Serial.println("Which switcher you want to set as active one? [1-2]: ");
+        correctCMD = true;
+        Serial.print("Which switcher you want to set as active one? [1-2]: ");
         while (!Serial.available())
         {
             // waiting for serial data
@@ -521,7 +554,10 @@ void loop()
         String nrStr = Serial.readStringUntil('\n');
         nrStr.trim();
         int nr = nrStr.toInt();
-        Serial.println(nr);
+        if (settings.colorTerminal)
+            Serial.println("\u001b[33m" + nrStr + "\u001b[37m");
+        else
+            Serial.println(nr);
         if (nr > 0 && nr < 3)
         {
             if (nr == 1)
@@ -529,18 +565,29 @@ void loop()
             else
                 settings.whichSwicher = true;
             Serial.flush();
-            Serial.println("Changed switcher to " + nr);
+            Serial.println(" Changed switcher to " + nr);
             delay(500);
             updateSettings();
         }
         else
         {
-            Serial.println("Invalid Switcher Number!");
+            if (settings.colorTerminal)
+                Serial.println("\u001b[31mInvalid Switcher Number!\u001b[37m");
+            else
+                Serial.println("Invalid Switcher Number!");
         }
+    }
+
+    if (bytesAvailable && (readString == "lss"))
+    {
+        correctCMD = true;
+        Serial.println((String) "Switcher 1 IP: " + settings.switcherIP1[0] + "." + settings.switcherIP1[1] + "." + settings.switcherIP1[2] + "." + settings.switcherIP1[3]);
+        Serial.println((String) "Switcher 2 IP: " + settings.switcherIP2[0] + "." + settings.switcherIP2[1] + "." + settings.switcherIP2[2] + "." + settings.switcherIP2[3]);
     }
 
     if (bytesAvailable && (readString == "color"))
     {
+        correctCMD = true;
         Serial.println("Do you want to have color terminal enabled? [yes/no]");
         while (!Serial.available())
         {
@@ -551,7 +598,7 @@ void loop()
         answer.toLowerCase();
         if (answer == "yes" || answer == "y")
         {
-            Serial.println("Color terminal enabled!");
+            Serial.println("\u001b[32mColor terminal enabled!\u001b[37m");
             settings.colorTerminal = true;
         }
         else
@@ -560,11 +607,14 @@ void loop()
             settings.colorTerminal = false;
         }
         delay(500);
-        updateSettings();
+
+        EEPROM.put(0, settings);
+        EEPROM.commit();
     }
 
     if (bytesAvailable && (readString == "ipconfig"))
     {
+        correctCMD = true;
         Serial.println("IP:                  " + WiFi.localIP().toString());
         Serial.println("Subnet Mask:         " + WiFi.subnetMask().toString());
         Serial.println("Gateway IP:          " + WiFi.gatewayIP().toString());
@@ -573,6 +623,7 @@ void loop()
 
     if (bytesAvailable && (readString == "ip a" || readString == "ipconfig /all"))
     {
+        correctCMD = true;
         Serial.println("IP:                  " + WiFi.localIP().toString());
         Serial.println("Subnet Mask:         " + WiFi.subnetMask().toString());
         Serial.println("Gateway IP:          " + WiFi.gatewayIP().toString());
@@ -582,6 +633,7 @@ void loop()
 
     if (bytesAvailable && (readString == "ip" || readString == "ip set"))
     {
+        correctCMD = true;
         Serial.print("Configure automaticly? (DHCP) [Yes/No]: ");
         while (!Serial.available())
         {
@@ -590,8 +642,11 @@ void loop()
         String answer = Serial.readStringUntil('\n');
         answer.trim();
         answer.toLowerCase();
-        Serial.println(answer);
-        if (answer == "yes" || answer == "y")
+        if (settings.colorTerminal)
+            Serial.println("\u001b[33m" + answer + "\u001b[37m");
+        else
+            Serial.println(answer);
+        if (answer == "yes" || answer == "y" || answer == "tak" || answer == "t")
         {
             settings.staticIP = false;
             delay(500);
@@ -610,17 +665,21 @@ void loop()
         String ipString = Serial.readStringUntil('\n');
         ipString.trim();
         IPAddress ip = IPAddress();
-        Serial.println();
+        if (settings.colorTerminal)
+            Serial.println("\u001b[33m" + ipString + "\u001b[37m");
+        else
+            Serial.println(ipString);
 
         // checking if we have a valid IP address
         if (!ip.fromString(ipString))
         {
-            Serial.println("Invalid IP address.");
+            if (settings.colorTerminal)
+                Serial.println("\u001b[31mInvalid IP address.\u001b[37m");
+            else
+                Serial.println("Invalid IP address.");
         }
         else
         {
-            Serial.print("New IP address: ");
-            Serial.println(ip.toString());
             // setting new ip address
             settings.tallyIP = ip;
 
@@ -635,17 +694,21 @@ void loop()
             String maskString = Serial.readStringUntil('\n');
             maskString.trim();
             IPAddress mask = IPAddress();
-            Serial.println();
+            if (settings.colorTerminal)
+                Serial.println("\u001b[33m" + maskString + "\u001b[37m");
+            else
+                Serial.println(maskString);
 
             // checking if we have a valid mask
             if (!mask.fromString(maskString))
             {
-                Serial.println("Invalid mask.");
+                if (settings.colorTerminal)
+                    Serial.println("\u001b[31mInvalid mask.\u001b[37m");
+                else
+                    Serial.println("Invalid mask.");
             }
             else
             {
-                Serial.print("New mask: ");
-                Serial.println(mask.toString());
                 // setting new mask
                 settings.tallySubnetMask = mask;
 
@@ -658,21 +721,28 @@ void loop()
                 String gatewayString = Serial.readStringUntil('\n');
                 gatewayString.trim();
                 IPAddress gateway = IPAddress();
-                Serial.println();
+                if (settings.colorTerminal)
+                    Serial.println("\u001b[33m" + gatewayString + "\u001b[37m");
+                else
+                    Serial.println(gatewayString);
                 // checking if we have a valid gateway
                 if (!gateway.fromString(gatewayString))
                 {
-                    Serial.println("Invalid gateway.");
+                    if (settings.colorTerminal)
+                        Serial.println("\u001b[31mInvalid gateway.\u001b[37m");
+                    else
+                        Serial.println("Invalid gateway.");
                 }
                 else
-                {
-                    Serial.print("New gateway: ");
-                    Serial.println(gateway.toString()); // setting new gateway
+                { // setting new gateway
                     settings.tallyGateway = gateway;
 
                     settings.staticIP = true;
 
-                    Serial.println("New settings applied.");
+                    if (settings.colorTerminal)
+                        Serial.println("\u001b[32mNew settings applied.\u001b[37m");
+                    else
+                        Serial.println("New settings applied.");
                     delay(500);
                     updateSettings();
                 }
@@ -682,6 +752,7 @@ void loop()
 
     if (bytesAvailable && (readString == "wifi set" || readString == "wifi"))
     {
+        correctCMD = true;
         String ssid = "", pwd = "";
         Serial.print("Write new SSID: ");
         while (!Serial.available())
@@ -691,16 +762,20 @@ void loop()
         // trimming off whitespaces
         String ssidString = Serial.readStringUntil('\n');
         ssidString.trim();
-        Serial.println();
+        if (settings.colorTerminal)
+            Serial.println("\u001b[33m" + ssidString + "\u001b[37m");
+        else
+            Serial.println(ssidString);
         // checking if we have a valid SSID
         if (!ssidString.length() > 0)
         {
-            Serial.println("Invalid SSID.");
+            if (settings.colorTerminal)
+                Serial.println("\u001b[31mSSID must be longer\u001b[37m");
+            else
+                Serial.println("SSID must be longer");
         }
         else
         {
-            Serial.print("New SSID: ");
-            Serial.println(ssidString);
             // setting new SSID
             ssid = ssidString;
 
@@ -713,16 +788,20 @@ void loop()
             // trimming off whitespaces
             String pwdString = Serial.readStringUntil('\n');
             pwdString.trim();
-            Serial.println();
-            // checking if we have a valid SSID
+            if (settings.colorTerminal)
+                Serial.println("\u001b[33m" + pwdString + "\u001b[37m");
+            else
+                Serial.println(pwdString);
+            // checking if we have a valid pwd
             if (!pwdString.length() > 0)
             {
-                Serial.println("Invalid SSID.");
+                if (settings.colorTerminal)
+                    Serial.println("\u001b[31mPassword must be longer\u001b[37m");
+                else
+                    Serial.println("Password must be longer");
             }
             else
             {
-                Serial.print("New password: ");
-                Serial.println(pwdString);
                 // setting new SSID
                 pwd = pwdString;
 
@@ -754,6 +833,22 @@ void loop()
         }
     }
 
+    if (bytesAvailable && correctCMD == false)
+    {
+        // incorrect command
+        if (settings.colorTerminal)
+        {
+            Serial.println("\u001b[31mCommand '\u001b[33m" + readString + "\u001b[31m' is not supported!");
+            Serial.println("Press 'h' or 'help' for more information\u001b[37m");
+        }
+        else
+        {
+            Serial.println("Command '" + readString + "' is not supported!");
+            Serial.println("Press 'h' or 'help' for more information");
+        }
+    }
+
+    /* DONT TOUCH*/
     if (bytesAvailable)
     {
         if (settings.colorTerminal)
@@ -1023,7 +1118,7 @@ int getTallyState(uint16_t tallyNo)
     }
 
     uint8_t tallyFlag = atemSwitcher.getTallyByIndexTallyFlags(tallyNo);
-    Serial.println(tallyFlag);
+    // Serial.println(tallyFlag);
     if (tallyFlag & TALLY_FLAG_PROGRAM)
     {
         return TALLY_FLAG_PROGRAM;
@@ -1053,19 +1148,19 @@ int getLedColor(int tallyMode, int tallyNo)
 
     if (tallyState == TALLY_FLAG_PROGRAM)
     { // if tally live
-        Serial.println("On live");
+        // Serial.println("On live");
         return LED_RED;
     }
     else if ((tallyState == TALLY_FLAG_PREVIEW      // if tally preview
               || tallyMode == MODE_PREVIEW_STAY_ON) // or preview stay on
              && tallyMode != MODE_PROGRAM_ONLY)
     { // and not program only
-        Serial.println("On live");
+        // Serial.println("On live");
         return LED_GREEN;
     }
     else
     { // if tally is neither
-        Serial.println("OFF");
+        // Serial.println("OFF");
         return LED_OFF;
     }
 }
