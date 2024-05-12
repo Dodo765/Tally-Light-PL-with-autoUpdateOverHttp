@@ -4,7 +4,7 @@
 // FIRMWARE VERSION !!!
 //
 
-float firmware_version = 1.1;
+float firmware_version = 1.2;
 
 //
 //
@@ -26,6 +26,7 @@ float firmware_version = 1.1;
 
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
+#include <ESP8266Ping.h>
 
 // Define LED colors
 #define LED_OFF 0
@@ -406,6 +407,7 @@ void loop()
             Serial.println("All of the commands: ");
             Serial.println();
             Serial.println("* '\u001b[32mr\u001b[37m'/'\u001b[32mrestart\u001b[37m' - restart ESP");
+            Serial.println("* '\u001b[32mping\u001b[37m' - ping from Tally");
             Serial.println("* '\u001b[32mcls\u001b[37m'/'\u001b[32mclear\u001b[37m' - clear terminal (not all terminal compatible)");
             Serial.println("* '\u001b[32mcolor\u001b[37m' - turn on/off colored terminal");
             Serial.println("* '\u001b[32mipconfig\u001b[37m' - simple IP info");
@@ -423,6 +425,7 @@ void loop()
             Serial.println("All of the commands: ");
             Serial.println();
             Serial.println("* 'r'/'restart' - restart ESP");
+            Serial.println("* 'ping' - ping from Tally");
             Serial.println("* 'cls'/'clear' - clear terminal (not all terminal compatible)");
             Serial.println("* 'color' - turn on/off colored terminal");
             Serial.println("* 'ipconfig' - simple IP info");
@@ -830,6 +833,55 @@ void loop()
                 delay(100);
                 ESP.restart();
             }
+        }
+    }
+
+    if (bytesAvailable && (readString == "ping"))
+    {
+        correctCMD = true;
+        Serial.print("What to ping: ");
+        while (!Serial.available())
+        {
+            // Waiting for serial to be available
+        }
+        String answer = Serial.readStringUntil('\n');
+        answer.trim();
+        answer.toLowerCase();
+        if (settings.colorTerminal)
+            Serial.println("\u001b[33m" + answer + "\u001b[37m");
+        else
+            Serial.println(answer);
+        bool pingState = Ping.ping("www.google.com");
+
+        char charArray[answer.length() + 1];
+        answer.toCharArray(charArray, answer.length() + 1);
+
+        IPAddress remote_addr;
+        if (WiFi.hostByName(charArray, remote_addr))
+        {
+            Serial.print("Pinging " + answer + " [");
+            Serial.print(remote_addr.toString());
+            Serial.println("]:");
+        }
+
+        if (pingState)
+        {
+            if (settings.colorTerminal)
+            {
+                Serial.println("Avg ping time: \u001b[36m" + String(Ping.averageTime()) + "\u001b[37mms");
+                Serial.println("Min ping time: \u001b[36m" + String(Ping.minTime()) + "\u001b[37mms");
+                Serial.println("Max ping time: \u001b[36m" + String(Ping.maxTime()) + "\u001b[37mms");
+            }
+            else
+            {
+                Serial.println("Avg ping time: " + String(Ping.averageTime()) + "ms");
+                Serial.println("Min ping time: " + String(Ping.minTime()) + "ms");
+                Serial.println("Max ping time: " + String(Ping.maxTime()) + "ms");
+            }
+        }
+        else
+        {
+            Serial.println("Ping unsuccessful");
         }
     }
 
