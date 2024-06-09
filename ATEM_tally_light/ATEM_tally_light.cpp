@@ -1,10 +1,10 @@
 #include <Arduino.h>
 #include "ATEM_tally_light.hpp"
 
-// FIRMWARE VERSION !!!
+// FIRMWARE VERSION !!! X.XX
 //
 
-float firmware_version = 1.22;
+float firmware_version = 1.23;
 
 //
 //
@@ -422,7 +422,7 @@ void loop()
                 Serial.println("* '\u001b[32mswitcher set ip\u001b[37m' - change switcher IP address");
                 Serial.println("* '\u001b[32mswitcher set active\u001b[37m' - change switcher IP address");
                 Serial.println("* '\u001b[32mv\u001b[37m'/'\u001b[32mversion\u001b[37m' - check firmware version");
-                Serial.println("* '\u001b[32mup\u001b[37m'/'\u001b[32mupdate\u001b[37m' - check online firmware update");
+                Serial.println("* '\u001b[32mup\u001b[37m'/'\u001b[32mupdate\u001b[37m'/'\u001b[32mversion -u\u001b[37m - check online (and update) firmware");
             }
             else
             {
@@ -442,11 +442,11 @@ void loop()
                 Serial.println("* 'switcher set ip' - change switcher IP address");
                 Serial.println("* 'switcher set active' - change switcher IP address");
                 Serial.println("* 'v'/'version' - check firmware version");
-                Serial.println("* 'up'/'update' - check online firmware update");
+                Serial.println("* 'up'/'update'/'version -u' - check online (and update) firmware");
             }
         }
 
-        if (readString == "v" || readString == "version")
+        if (readString == "v" || readString == "version" || readString == "version -u")
         {
             correctCMD = true;
             Serial.println();
@@ -475,13 +475,14 @@ void loop()
                 Serial.println("No update available");
             else
             {
-                Serial.println("Do you want to update?");
+                Serial.print("Do you want to update?");
                 while (!Serial.available())
                 {
                     // waiting for serial data
                 }
                 String answer = Serial.readStringUntil('\n');
                 answer.trim();
+                Serial.println();
                 if (answer == "y" || answer == "yes" || answer == "t" || answer == "tak" || answer == "Y" || answer == "Yes")
                 {
                     Serial.println("Rebooting to update in:");
@@ -1347,7 +1348,7 @@ void handleRoot()
     html += WiFi.hostname();
     html += "\"required/></td></tr><tr><td>Numer kamery: </td><td><input type=\"number\"size=\"5\"min=\"1\"max=\"41\"name=\"tNo\"value=\"";
     html += (settings.tallyNo + 1);
-    html += "\"required/></td></tr><tr style=\"display:none;\"><td>Tally Light mode (LED 1):&nbsp;</td><td><select name=\"tModeLED1\"><option value=\"";
+    html += "\"required/></td></tr><tr style=\"display:none;\" class=\"advanced\"><td>Tally Light mode (LED 1):&nbsp;</td><td><select name=\"tModeLED1\"><option value=\"";
     html += (String)MODE_NORMAL + "\"";
     if (settings.tallyModeLED1 == MODE_NORMAL)
         html += "selected";
@@ -1363,7 +1364,7 @@ void handleRoot()
     html += (String)MODE_ON_AIR + "\"";
     if (settings.tallyModeLED1 == MODE_ON_AIR)
         html += "selected";
-    html += ">On Air</option></select></td></tr><tr style=\"display:none;\"><td>Tally Light mode (LED 2):</td><td><select name=\"tModeLED2\"><option value=\"";
+    html += ">On Air</option></select></td></tr><tr style=\"display:none;\" class=\"advanced\"><td>Tally Light mode (LED 2):</td><td><select name=\"tModeLED2\"><option value=\"";
     html += (String)MODE_NORMAL + "\"";
     if (settings.tallyModeLED2 == MODE_NORMAL)
         html += "selected";
@@ -1379,7 +1380,7 @@ void handleRoot()
     html += (String)MODE_ON_AIR + "\"";
     if (settings.tallyModeLED2 == MODE_ON_AIR)
         html += "selected";
-    html += ">On Air</option></select></td></tr><tr style=\"display:none;\"><td> Jasność diód: </td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"100\"name=\"ledBright\"value=\"";
+    html += ">On Air</option></select></td></tr><tr style=\"display:none;\" class=\"advanced\"><td> Jasność diód: </td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"100\"name=\"ledBright\"value=\"";
     html += settings.ledBrightness;
     html += "\"required/></td></tr><tr style=\"display:none;\" class=\"advanced\"><td>Ilość ledów:</td><td><input type=\"number\"size=\"5\"min=\"0\"max=\"1000\"name=\"neoPxAmount\"value=\"";
     html += settings.neopixelsAmount;
