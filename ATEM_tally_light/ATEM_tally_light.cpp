@@ -422,7 +422,7 @@ void loop()
                 Serial.println("* '\u001b[32mswitcher set ip\u001b[37m' - change switcher IP address");
                 Serial.println("* '\u001b[32mswitcher set active\u001b[37m' - change switcher IP address");
                 Serial.println("* '\u001b[32mv\u001b[37m'/'\u001b[32mversion\u001b[37m' - check firmware version");
-                Serial.println("* '\u001b[32mup\u001b[37m'/'\u001b[32mupdate\u001b[37m'/'\u001b[32mversion -u\u001b[37m - check online (and update) firmware");
+                Serial.println("* '\u001b[32mup\u001b[37m'/'\u001b[32mupdate\u001b[37m'/'\u001b[32mversion -u\u001b[37m' - check online (and update) firmware");
             }
             else
             {
